@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Banana Ripeness Classifier</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #fffde7;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      padding: 2.5rem;
+      max-width: 520px;
+      width: 100%;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      color: #f9a825;
+      margin-bottom: 0.25rem;
+      text-align: center;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #777;
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .upload-area {
+      border: 2px dashed #f9a825;
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .upload-area:hover { background: #fffde7; }
+
+    .upload-area input[type="file"] { display: none; }
+
+    .upload-area label {
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    #preview {
+      margin-top: 1rem;
+      max-width: 100%;
+      max-height: 260px;
+      border-radius: 10px;
+      display: none;
+    }
+
+    button#predict-btn {
+      margin-top: 1.25rem;
+      width: 100%;
+      padding: 0.75rem;
+      background: #f9a825;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button#predict-btn:hover { background: #f57f17; }
+    button#predict-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    #result {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      background: #f1f8e9;
+      border-radius: 10px;
+      display: none;
+    }
+
+    #result h2 { font-size: 1.1rem; color: #558b2f; margin-bottom: 0.5rem; }
+
+    .bar-container { margin: 0.25rem 0; }
+
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: #555;
+      margin-bottom: 2px;
+    }
+
+    .bar-bg {
+      background: #e0e0e0;
+      border-radius: 4px;
+      height: 10px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: #8bc34a;
+      border-radius: 4px;
+      transition: width 0.4s ease;
+    }
+
+    .bar-fill.best { background: #f9a825; }
+
+    #error {
+      margin-top: 1rem;
+      color: #c62828;
+      font-size: 0.9rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🍌 Banana Ripeness Classifier</h1>
+    <p class="subtitle">Upload a banana image to get an instant ripeness prediction.</p>
+
+    <div class="upload-area" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*" />
+      <label for="file-input">
+        📁 Click to choose an image, or drag and drop here
+      </label>
+      <br />
+      <img id="preview" alt="Preview" />
+    </div>
+
+    <button id="predict-btn" disabled>Predict Ripeness</button>
+
+    <div id="error"></div>
+    <div id="result">
+      <h2 id="result-label"></h2>
+      <div id="bars"></div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput  = document.getElementById('file-input');
+    const preview    = document.getElementById('preview');
+    const predictBtn = document.getElementById('predict-btn');
+    const resultDiv  = document.getElementById('result');
+    const resultLabel = document.getElementById('result-label');
+    const barsDiv    = document.getElementById('bars');
+    const errorDiv   = document.getElementById('error');
+    const dropZone   = document.getElementById('drop-zone');
+
+    function handleFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+        predictBtn.disabled = false;
+        resultDiv.style.display = 'none';
+        errorDiv.style.display  = 'none';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.background = '#fffde7'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.background = ''; });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.background = '';
+      handleFile(e.dataTransfer.files[0]);
+    });
+
+    predictBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      predictBtn.disabled = true;
+      predictBtn.textContent = 'Predicting…';
+      errorDiv.style.display  = 'none';
+      resultDiv.style.display = 'none';
+
+      const form = new FormData();
+      form.append('file', file);
+
+      try {
+        const resp = await fetch('/predict', { method: 'POST', body: form });
+        if (!resp.ok) {
+          const err = await resp.json();
+          throw new Error(err.detail || 'Prediction failed');
+        }
+        const data = await resp.json();
+
+        resultLabel.textContent = `Predicted: ${data.predicted_class}  (${(data.confidence * 100).toFixed(1)}%)`;
+
+        barsDiv.innerHTML = '';
+        const sorted = Object.entries(data.all_probabilities).sort((a, b) => b[1] - a[1]);
+        sorted.forEach(([cls, prob]) => {
+          const pct = (prob * 100).toFixed(1);
+          const isBest = cls === data.predicted_class;
+          barsDiv.innerHTML += `
+            <div class="bar-container">
+              <div class="bar-label"><span>${cls}</span><span>${pct}%</span></div>
+              <div class="bar-bg"><div class="bar-fill ${isBest ? 'best' : ''}" style="width:${pct}%"></div></div>
+            </div>`;
+        });
+
+        resultDiv.style.display = 'block';
+      } catch (err) {
+        errorDiv.textContent = `Error: ${err.message}`;
+        errorDiv.style.display = 'block';
+      } finally {
+        predictBtn.disabled = false;
+        predictBtn.textContent = 'Predict Ripeness';
+      }
+    });
+  </script>
+</body>
+</html>
