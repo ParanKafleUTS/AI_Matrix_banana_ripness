@@ -43,7 +43,7 @@ def load_model(path: str) -> nn.Module:
     model = models.efficientnet_b0(weights=None)
     num_ftrs = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(num_ftrs, NUM_CLASSES)
-    state = torch.load(path, map_location=DEVICE)
+    state = torch.load(path, map_location=DEVICE, weights_only=True)
     model.load_state_dict(state)
     model.to(DEVICE)
     model.eval()
