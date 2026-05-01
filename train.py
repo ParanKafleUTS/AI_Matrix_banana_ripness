@@ -5,7 +5,7 @@ ripeness dataset and save the best weights for each model.
 Usage:
     python train.py [--data-dir DATA_DIR] [--epochs N] [--batch-size N]
 
-The script expects the dataset to be organised as:
+The script expects the dataset to be organized as:
     DATA_DIR/
       train/  <class_name>/  *.jpg
       valid/  <class_name>/  *.jpg

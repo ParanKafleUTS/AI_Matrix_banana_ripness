@@ -1,5 +1,5 @@
 """
-save_to_s3.py – Upload trained model artefacts to an S3 bucket.
+save_to_s3.py – Upload trained model artifacts to an S3 bucket.
 
 Usage:
     python save_to_s3.py [--bucket BUCKET] [--prefix PREFIX] [--models-dir DIR]
