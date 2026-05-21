@@ -877,3 +877,4 @@ else:
         print("\n  [skip] No checkpoint saved — cannot run test evaluation.")
 
 print("\nStage 4 COMPLETE ✓")
+"# CI/CD trigger test - $(date)" 
