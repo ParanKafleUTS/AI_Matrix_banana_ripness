@@ -51,7 +51,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install clearml
+          pip install clearml kagglehub
 
       # ── 4. Configure ClearML using GitHub Secrets ─────────────────────────
       # Secrets required in GitHub → Settings → Secrets and variables → Actions:
@@ -109,6 +109,8 @@ jobs:
           CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
           CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
           CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+          KAGGLE_USERNAME:        ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY:             ${{ secrets.KAGGLE_KEY }}
         run: |
           echo "Run mode: ${{ github.event.inputs.run_mode || 'full' }}"
           python pipeline_controller.py \
