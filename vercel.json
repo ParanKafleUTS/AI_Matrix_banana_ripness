@@ -1,7 +1,6 @@
 {
   "version": 2,
-  "name": "banana-ripeness-ui",
-  "outputDirectory": "static",
+  "outputDirectory": ".",
   "buildCommand": null,
   "cleanUrls": true,
   "trailingSlash": false,
