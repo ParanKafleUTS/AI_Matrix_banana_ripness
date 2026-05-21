@@ -93,43 +93,46 @@ jobs:
               project='Banana Ripeness',
               version='4.1',
               add_pipeline_tags=True,
+              default_execution_queue='default',
           )
 
-          # Register stages so they appear in ClearML dashboard
           pipe.add_step(
               name='stage_data',
               base_task_project='Banana Ripeness',
               base_task_name='Pipeline step 1 dataset',
+              execution_queue='default',
           )
           pipe.add_step(
               name='stage_process',
               parents=['stage_data'],
               base_task_project='Banana Ripeness',
               base_task_name='Pipeline step 2 process dataset',
+              execution_queue='default',
           )
           pipe.add_step(
               name='stage_train',
               parents=['stage_process'],
               base_task_project='Banana Ripeness',
               base_task_name='Pipeline step 3 train model',
+              execution_queue='default',
           )
           pipe.add_step(
               name='stage_hpo',
               parents=['stage_process'],
               base_task_project='Banana Ripeness',
               base_task_name='Pipeline step 4 hpo',
+              execution_queue='default',
           )
           pipe.add_step(
               name='stage_final',
               parents=['stage_train', 'stage_hpo'],
               base_task_project='Banana Ripeness',
               base_task_name='Pipeline step 5 final model',
+              execution_queue='default',
           )
 
-          # Start pipeline — if no agent is running it stays as 'queued'
-          # visible in ClearML dashboard. Run clearml-agent on SageMaker to execute.
           pipe.start(queue='default')
-          print('Pipeline enqueued in ClearML successfully!')
-          print('View at: https://app.clear.ml')
-          print('Run on SageMaker: clearml-agent daemon --queue default --foreground')
+          print('Pipeline enqueued in ClearML!')
+          print('View: https://app.clear.ml')
+          print('To run: clearml-agent daemon --queue default --foreground')
           "
