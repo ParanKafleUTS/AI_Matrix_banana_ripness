@@ -8,3 +8,5 @@ __pycache__/
 *.zip
 *.pth
 >>>>>>> 0e2d2f482adc85f851ebf69666817dbc305b523a
+.vercel
+.env*.local
