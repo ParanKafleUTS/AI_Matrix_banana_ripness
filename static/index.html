@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Banana Ripeness AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0a0b;
+    --surface:   #111113;
+    --card:      #18181c;
+    --border:    #2a2a30;
+    --accent:    #f0c040;
+    --accent2:   #3ecf8e;
+    --text:      #e8e8ea;
+    --muted:     #6b6b78;
+    --overripe:  #f59e0b;
+    --ripe:      #22c55e;
+    --rotten:    #ef4444;
+    --unripe:    #84cc16;
+    --radius:    14px;
+    --glow:      0 0 40px rgba(240,192,64,0.08);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 15px; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ambient background grain */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem;
+    height: 60px;
+    background: rgba(10,10,11,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-brand {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 1.1rem;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+    display: flex; align-items: center; gap: .6rem;
+  }
+  .nav-brand span { font-size: 1.4rem; }
+  .nav-status {
+    font-size: .72rem; color: var(--muted);
+    display: flex; align-items: center; gap: .5rem;
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); flex-shrink: 0;
+    transition: background .3s;
+  }
+  .status-dot.online { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    background: var(--surface);
+  }
+  .tab-btn {
+    background: none; border: none; cursor: pointer;
+    font-family: 'DM Mono', monospace; font-size: .8rem;
+    color: var(--muted);
+    padding: .9rem 1.4rem;
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* ── LAYOUT ── */
+  .container {
+    max-width: 1200px; margin: 0 auto;
+    padding: 2rem; position: relative; z-index: 1;
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; animation: fadeIn .25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  /* ── DROP ZONE ── */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 3.5rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .25s, background .25s;
+    position: relative;
+    overflow: hidden;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(240,192,64,0.03);
+  }
+  .dropzone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .dz-icon { font-size: 2.8rem; margin-bottom: .8rem; opacity: .5; }
+  .dz-label {
+    font-family: 'Syne', sans-serif; font-size: 1.05rem;
+    font-weight: 700; color: var(--text); margin-bottom: .4rem;
+  }
+  .dz-sub { font-size: .75rem; color: var(--muted); }
+
+  /* ── CONTROLS ── */
+  .controls {
+    display: flex; flex-wrap: wrap; gap: 1rem;
+    align-items: flex-end;
+    margin-top: 1.2rem;
+  }
+  .control-group { display: flex; flex-direction: column; gap: .4rem; }
+  .control-group label { font-size: .72rem; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+  select, .btn {
+    font-family: 'DM Mono', monospace;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: .55rem 1rem;
+    font-size: .82rem;
+    cursor: pointer;
+    outline: none;
+    transition: border-color .2s, background .2s;
+  }
+  select:hover, select:focus { border-color: var(--accent); }
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0a0b;
+    border-color: var(--accent);
+    font-weight: 600;
+    padding: .6rem 1.6rem;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; letter-spacing: .03em;
+    transition: transform .15s, box-shadow .2s;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(240,192,64,.25); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+  .btn-danger { border-color: #ef4444; color: #ef4444; }
+  .btn-danger:hover { background: rgba(239,68,68,.1); }
+
+  /* ── RESULTS GRID ── */
+  .results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    margin-top: 1.5rem;
+  }
+  @media (max-width: 700px) { .results-grid { grid-template-columns: 1fr; } }
+
+  .result-image-wrapper {
+    position: relative; border-radius: var(--radius); overflow: hidden;
+    aspect-ratio: 1/1; background: #000;
+  }
+  .result-image-wrapper img {
+    width: 100%; height: 100%; object-fit: contain; display: block;
+  }
+  .img-label {
+    position: absolute; bottom: .6rem; left: .6rem;
+    background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
+    padding: .25rem .6rem; border-radius: 6px;
+    font-size: .68rem; color: var(--muted); letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  /* ── CONFIDENCE BARS ── */
+  .confidence-section { padding: 1.2rem; }
+  .conf-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 1rem;
+  }
+  .conf-title {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: .85rem;
+    text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+  }
+  .pred-badge {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .3rem .8rem; border-radius: 20px;
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: .8rem;
+  }
+  .conf-row {
+    display: grid; grid-template-columns: 82px 1fr 54px;
+    align-items: center; gap: .7rem; margin-bottom: .55rem;
+  }
+  .conf-label { font-size: .73rem; color: var(--muted); }
+  .conf-bar-track {
+    height: 7px; background: rgba(255,255,255,.06);
+    border-radius: 99px; overflow: hidden;
+  }
+  .conf-bar-fill {
+    height: 100%; border-radius: 99px;
+    transition: width 1s cubic-bezier(.34,1.56,.64,1);
+    width: 0;
+  }
+  .conf-pct { font-size: .72rem; text-align: right; }
+
+  /* ── RECIPE CARD ── */
+  .recipe-card { margin-top: 1.2rem; padding: 1.2rem; border-top: 1px solid var(--border); }
+  .recipe-header {
+    display: flex; align-items: center; gap: .7rem;
+    margin-bottom: .8rem;
+  }
+  .recipe-emoji { font-size: 1.8rem; }
+  .recipe-title {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1rem;
+  }
+  .recipe-desc { font-size: .75rem; color: var(--muted); margin-bottom: .8rem; }
+  .recipe-tip {
+    font-size: .73rem; color: var(--accent2);
+    padding: .5rem .8rem; background: rgba(62,207,142,.06);
+    border-radius: 8px; border-left: 2px solid var(--accent2);
+    margin-bottom: .9rem;
+  }
+  .recipe-list {
+    display: flex; flex-wrap: wrap; gap: .5rem;
+  }
+  .recipe-pill {
+    padding: .35rem .8rem;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: .72rem; color: var(--text);
+    display: flex; gap: .4rem;
+  }
+  .recipe-pill span { color: var(--muted); }
+
+  /* ── COMPARE TAB ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+  @media (max-width: 900px) { .compare-grid { grid-template-columns: 1fr; } }
+  .compare-card { border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+  .compare-card-header {
+    padding: .7rem 1rem;
+    background: rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .compare-card-header .model-name {
+    font-family: 'Syne', sans-serif; font-weight: 700; font-size: .82rem;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .compare-winner {
+    font-size: .65rem; padding: .2rem .6rem; border-radius: 99px;
+    background: rgba(240,192,64,.15); color: var(--accent);
+    letter-spacing: .06em;
+  }
+
+  /* ── HISTORY TAB ── */
+  .history-table { width: 100%; border-collapse: collapse; }
+  .history-table th, .history-table td {
+    padding: .7rem 1rem; text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-size: .77rem;
+  }
+  .history-table th {
+    font-family: 'Syne', sans-serif; font-weight: 700;
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--muted); background: var(--surface);
+  }
+  .history-table tr:hover td { background: rgba(255,255,255,.02); }
+  .history-thumb {
+    width: 40px; height: 40px; border-radius: 6px;
+    object-fit: cover; cursor: pointer;
+    transition: transform .2s; border: 1px solid var(--border);
+  }
+  .history-thumb:hover { transform: scale(1.15); }
+
+  /* ── BADGE ── */
+  .badge {
+    display: inline-block; padding: .2rem .65rem;
+    border-radius: 99px; font-size: .7rem; font-weight: 600;
+  }
+
+  /* ── REALTIME ── */
+  .realtime-banner {
+    display: flex; align-items: center; gap: .7rem;
+    padding: .7rem 1rem;
+    background: rgba(62,207,142,.06);
+    border: 1px solid rgba(62,207,142,.2);
+    border-radius: 10px; margin-bottom: 1rem;
+    font-size: .76rem; color: var(--accent2);
+  }
+  .pulse {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(62,207,142,.5); }
+    50%      { box-shadow: 0 0 0 6px rgba(62,207,142,0); }
+  }
+
+  /* ── WEBCAM ── */
+  .webcam-wrapper {
+    position: relative; border-radius: var(--radius);
+    overflow: hidden; background: #000; aspect-ratio: 4/3;
+  }
+  #webcamVideo {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  #webcamCanvas { display: none; }
+  .webcam-overlay {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: .8rem 1rem;
+    background: linear-gradient(transparent, rgba(0,0,0,.7));
+  }
+  .webcam-pred {
+    font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.1rem;
+    transition: color .3s;
+  }
+  .webcam-conf { font-size: .75rem; color: rgba(255,255,255,.6); }
+
+  /* ── SPINNER ── */
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid rgba(240,192,64,.3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    text-align: center; padding: 4rem 2rem; color: var(--muted);
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: .8rem; opacity: .4; }
+  .empty-text { font-family: 'Syne', sans-serif; font-weight: 700; }
+  .empty-sub { font-size: .78rem; margin-top: .4rem; }
+
+  .ms-tag {
+    font-size: .68rem; color: var(--muted);
+    margin-left: .5rem;
+  }
+  .section-title {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 1.4rem; margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: .6rem;
+  }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 800px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand"><span>🍌</span> Banana Ripeness AI</div>
+  <div class="nav-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Connecting…</span>
+  </div>
+</nav>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('classify')">Classify</button>
+  <button class="tab-btn" onclick="switchTab('snap')">📷 Snap & Classify</button>
+  <button class="tab-btn" onclick="switchTab('compare')">Compare Models</button>
+  <button class="tab-btn" onclick="switchTab('realtime')">Real-Time</button>
+  <button class="tab-btn" onclick="switchTab('history')">History</button>
+</div>
+
+<div class="container">
+
+  <!-- ── TAB: CLASSIFY ── -->
+  <div id="tab-classify" class="tab-panel active">
+    <div class="section-title">🔬 Classify Banana</div>
+
+    <div class="card" style="padding:1.5rem">
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleFile(event)"/>
+        <div class="dz-icon">📸</div>
+        <div class="dz-label">Drop image here or click to upload</div>
+        <div class="dz-sub">JPG, PNG, WEBP — any size</div>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label>Model</label>
+          <select id="modelSelect">
+            <option value="mobilenet">MobileNet V3</option>
+            <option value="efficientnet">EfficientNet B0</option>
+            <option value="efficientnetv2">EfficientNet V2-S</option>
+            <option value="resnet">ResNet-50</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>Grad-CAM</label>
+          <select id="gradcamSelect">
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="predictBtn" onclick="runPredict()" disabled>
+          Classify
+        </button>
+        <button class="btn" onclick="clearResults()" style="margin-left:auto">Clear</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="classifyResults" style="display:none">
+      <div class="results-grid">
+        <!-- Original + Grad-CAM images -->
+        <div style="display:flex;flex-direction:column;gap:.8rem">
+          <div class="result-image-wrapper">
+            <img id="origImg" src="" alt="Original"/>
+            <div class="img-label">Original</div>
+          </div>
+          <div class="result-image-wrapper" id="gradcamWrapper">
+            <img id="gradcamImg" src="" alt="Grad-CAM"/>
+            <div class="img-label">Grad-CAM Heatmap</div>
+          </div>
+        </div>
+
+        <!-- Confidence + Recipe -->
+        <div>
+          <div class="card">
+            <div class="confidence-section">
+              <div class="conf-header">
+                <div class="conf-title">Confidence Scores</div>
+                <div class="pred-badge" id="predBadge"></div>
+              </div>
+              <div id="confBars"></div>
+              <div style="margin-top:.8rem;font-size:.72rem;color:var(--muted)">
+                Model: <span id="modelUsed" style="color:var(--text)">—</span>
+                <span class="ms-tag" id="msTag"></span>
+              </div>
+            </div>
+            <div class="recipe-card" id="recipeCard"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="classifyLoading" style="display:none;text-align:center;padding:3rem">
+      <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 1rem"></div>
+      <div style="color:var(--muted);font-size:.82rem">Running inference…</div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="classifyEmpty" class="empty" style="margin-top:2rem">
+      <div class="empty-icon">🍌</div>
+      <div class="empty-text">No image selected</div>
+      <div class="empty-sub">Upload a banana photo to get started</div>
+    </div>
+  </div>
+
+
+  <!-- ── TAB: SNAP & CLASSIFY ── -->
+  <div id="tab-snap" class="tab-panel">
+    <div class="section-title">📷 Snap & Classify</div>
+
+    <div class="two-col">
+      <!-- Left: camera -->
+      <div>
+        <div class="card" style="overflow:hidden">
+          <!-- Camera view -->
+          <div id="snapCamBox" style="position:relative;background:#000;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center">
+            <video id="snapVideo" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:none"></video>
+            <canvas id="snapCanvas" style="display:none"></canvas>
+            <!-- Frozen frame shown after snap -->
+            <img id="snapFrozen" style="width:100%;height:100%;object-fit:cover;display:none"/>
+            <!-- Idle placeholder -->
+            <div id="snapPlaceholder" style="text-align:center;padding:2rem;color:var(--muted)">
+              <div style="font-size:3rem;margin-bottom:.6rem;opacity:.4">📷</div>
+              <div style="font-family:Syne,sans-serif;font-weight:700;font-size:.9rem;color:var(--text)">Camera not started</div>
+              <div style="font-size:.75rem;margin-top:.3rem">Click Start Camera below</div>
+            </div>
+            <!-- Countdown overlay -->
+            <div id="snapCountdown" style="display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center">
+              <div id="snapCountNum" style="font-family:Syne,sans-serif;font-weight:800;font-size:5rem;color:var(--accent);text-shadow:0 0 30px rgba(240,192,64,.5)"></div>
+            </div>
+            <!-- Flash overlay -->
+            <div id="snapFlash" style="display:none;position:absolute;inset:0;background:#fff;pointer-events:none"></div>
+          </div>
+
+          <!-- Camera controls -->
+          <div style="padding:1rem;display:flex;gap:.7rem;flex-wrap:wrap;align-items:center;border-top:1px solid var(--border)">
+            <button class="btn btn-primary" id="snapStartBtn" onclick="startSnapCam()">Start Camera</button>
+            <button class="btn" id="snapStopBtn" onclick="stopSnapCam()" style="display:none">Stop Camera</button>
+            <button class="btn btn-primary" id="snapTakeBtn" onclick="takeSnap()" style="display:none;background:var(--accent2);border-color:var(--accent2)">
+              Take Photo
+            </button>
+            <button class="btn" id="snapRetakeBtn" onclick="retakeSnap()" style="display:none">Retake</button>
+            <div class="control-group" style="margin-left:auto">
+              <label>Model</label>
+              <select id="snapModelSelect">
+                <option value="mobilenet">MobileNet V3</option>
+                <option value="efficientnet">EfficientNet B0</option>
+                <option value="efficientnetv2">EfficientNet V2-S</option>
+                <option value="resnet">ResNet-50</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Confidence + Grad-CAM after snap -->
+        <div id="snapConfCard" style="display:none;margin-top:1rem" class="card">
+          <div class="confidence-section">
+            <div class="conf-header">
+              <div class="conf-title">Confidence Scores</div>
+              <div class="pred-badge" id="snapPredBadge"></div>
+            </div>
+            <div id="snapConfBars"></div>
+            <div style="margin-top:.6rem;font-size:.72rem;color:var(--muted)">
+              Model: <span id="snapModelUsed" style="color:var(--text)">—</span>
+              <span id="snapMsTag" class="ms-tag"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: result + recipe -->
+      <div>
+        <!-- Grad-CAM -->
+        <div id="snapGradcamCard" style="display:none" class="card" >
+          <div style="position:relative;aspect-ratio:4/3;background:#000;overflow:hidden">
+            <img id="snapGradcamImg" style="width:100%;height:100%;object-fit:cover"/>
+            <div class="img-label">Grad-CAM Heatmap</div>
+          </div>
+        </div>
+
+        <!-- Recipe -->
+        <div id="snapRecipeCard" style="display:none;margin-top:1rem" class="card">
+          <div style="padding:1.2rem">
+            <!-- Ripeness verdict banner -->
+            <div id="snapVerdict" style="
+              padding:1rem 1.2rem; border-radius:10px; margin-bottom:1rem;
+              display:flex; align-items:center; gap:1rem;
+            ">
+              <div id="snapVerdictEmoji" style="font-size:2.8rem"></div>
+              <div>
+                <div id="snapVerdictTitle" style="font-family:Syne,sans-serif;font-weight:800;font-size:1.15rem"></div>
+                <div id="snapVerdictDesc" style="font-size:.78rem;opacity:.8;margin-top:.2rem"></div>
+              </div>
+            </div>
+            <!-- Tip -->
+            <div id="snapTip" style="
+              font-size:.74rem; color:var(--accent2);
+              padding:.5rem .8rem;
+              background:rgba(62,207,142,.06);
+              border-radius:8px; border-left:2px solid var(--accent2);
+              margin-bottom:1rem;
+            "></div>
+            <!-- Recipe suggestions -->
+            <div style="font-family:Syne,sans-serif;font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.7rem">
+              Suggested Recipes
+            </div>
+            <div id="snapRecipeList" class="recipe-list"></div>
+          </div>
+        </div>
+
+        <!-- Loading state -->
+        <div id="snapLoading" style="display:none;text-align:center;padding:3rem">
+          <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 1rem"></div>
+          <div style="color:var(--muted);font-size:.82rem">Analysing your banana…</div>
+        </div>
+
+        <!-- Idle state -->
+        <div id="snapIdle" style="padding:3rem;text-align:center;color:var(--muted)">
+          <div style="font-size:2.5rem;margin-bottom:.6rem;opacity:.3">🍌</div>
+          <div style="font-family:Syne,sans-serif;font-weight:700;font-size:.9rem;color:var(--text)">Ready when you are</div>
+          <div style="font-size:.75rem;margin-top:.3rem">Start the camera and take a photo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── TAB: COMPARE ── -->
+  <div id="tab-compare" class="tab-panel">
+    <div class="section-title">⚖️ Compare All Models</div>
+    <div class="card" style="padding:1.5rem">
+      <div class="dropzone" id="dropzone2">
+        <input type="file" id="fileInput2" accept="image/*" onchange="handleCompareFile(event)"/>
+        <div class="dz-icon">🔄</div>
+        <div class="dz-label">Upload image to compare all 4 models</div>
+        <div class="dz-sub">Each model runs independently with Grad-CAM</div>
+      </div>
+      <div class="controls" style="margin-top:1rem">
+        <button class="btn btn-primary" id="compareBtn" onclick="runCompare()" disabled>
+          Compare All Models
+        </button>
+      </div>
+    </div>
+
+    <div id="compareLoading" style="display:none;text-align:center;padding:3rem">
+      <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 1rem"></div>
+      <div style="color:var(--muted);font-size:.82rem">Running all 4 models…</div>
+    </div>
+
+    <div id="compareResults" style="display:none;margin-top:1.5rem">
+      <div style="margin-bottom:1rem;font-size:.8rem;color:var(--muted)">
+        Image: <span id="compareFilename" style="color:var(--text)"></span>
+      </div>
+      <div class="compare-grid" id="compareGrid"></div>
+    </div>
+  </div>
+
+
+  <!-- ── TAB: REAL-TIME ── -->
+  <div id="tab-realtime" class="tab-panel">
+    <div class="section-title">📷 Real-Time Classification</div>
+    <div class="realtime-banner">
+      <div class="pulse"></div>
+      Live webcam — classifies every 1.5 seconds automatically
+    </div>
+    <div class="two-col">
+      <div>
+        <div class="webcam-wrapper">
+          <video id="webcamVideo" autoplay playsinline muted></video>
+          <canvas id="webcamCanvas"></canvas>
+          <div class="webcam-overlay" id="webcamOverlay" style="display:none">
+            <div class="webcam-pred" id="webcamPred">—</div>
+            <div class="webcam-conf" id="webcamConf"></div>
+          </div>
+        </div>
+        <div class="controls" style="margin-top:1rem">
+          <button class="btn btn-primary" id="startCamBtn" onclick="startWebcam()">Start Camera</button>
+          <button class="btn" id="stopCamBtn" onclick="stopWebcam()" style="display:none">Stop</button>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="padding:1.2rem;height:100%">
+          <div class="conf-title" style="margin-bottom:1rem">Live Scores</div>
+          <div id="rtConfBars">
+            <div class="empty" style="padding:2rem">
+              <div class="empty-icon" style="font-size:2rem">📷</div>
+              <div class="empty-sub">Start camera to see live scores</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── TAB: HISTORY ── -->
+  <div id="tab-history" class="tab-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem">
+      <div class="section-title" style="margin-bottom:0">📋 Inference History</div>
+      <button class="btn btn-danger" onclick="clearHistory()">Clear All</button>
+    </div>
+    <div class="card" style="overflow:auto">
+      <div id="historyContent">
+        <div class="empty" style="padding:3rem">
+          <div class="empty-icon">📋</div>
+          <div class="empty-text">No history yet</div>
+          <div class="empty-sub">Run a classification to see results here</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+
+<script>
+const API = '';  // same origin; change to 'http://YOUR_SERVER:8000' if hosted elsewhere
+let currentFile = null;
+let compareFile = null;
+let webcamStream = null;
+let rtInterval = null;
+let rtModel = 'mobilenet';
+
+const CLASS_COLORS = {
+  overripe: '#f59e0b',
+  ripe:     '#22c55e',
+  rotten:   '#ef4444',
+  unripe:   '#84cc16',
+};
+
+// ── Health check ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await fetch(`${API}/health`);
+    const d = await r.json();
+    document.getElementById('statusDot').className = 'status-dot online';
+    const ok = Object.values(d.models).filter(v => v === 'loaded').length;
+    document.getElementById('statusText').textContent = `${ok}/4 models ready · ${d.device}`;
+  } catch {
+    document.getElementById('statusDot').className = 'status-dot';
+    document.getElementById('statusText').textContent = 'API offline';
+  }
+}
+checkHealth();
+setInterval(checkHealth, 10000);
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    const tabs = ['classify','snap','compare','realtime','history'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  if (name === 'history') loadHistory();
+  // Stop snap camera when leaving that tab
+  if (name !== 'snap') stopSnapCam();
+}
+
+// ── Dropzone drag ─────────────────────────────────────────────────────────────
+['dropzone','dropzone2'].forEach(id => {
+  const dz = document.getElementById(id);
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    if (id === 'dropzone') { currentFile = f; updateDropzone(dz, f); document.getElementById('predictBtn').disabled = false; }
+    else { compareFile = f; updateDropzone(dz, f); document.getElementById('compareBtn').disabled = false; }
+  });
+});
+
+function updateDropzone(dz, file) {
+  const icon = dz.querySelector('.dz-icon');
+  const label = dz.querySelector('.dz-label');
+  icon.textContent = '✅';
+  label.textContent = file.name;
+  label.style.color = 'var(--accent2)';
+}
+
+function handleFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  currentFile = f;
+  updateDropzone(document.getElementById('dropzone'), f);
+  document.getElementById('predictBtn').disabled = false;
+  document.getElementById('classifyEmpty').style.display = 'none';
+}
+
+function handleCompareFile(e) {
+  const f = e.target.files[0];
+  if (!f) return;
+  compareFile = f;
+  updateDropzone(document.getElementById('dropzone2'), f);
+  document.getElementById('compareBtn').disabled = false;
+}
+
+// ── No-banana rejection UI ────────────────────────────────────────────────────
+function showNoBanana(resultsId, message) {
+  // Hide results, show styled rejection card
+  const el = document.getElementById(resultsId);
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="
+      margin-top:1.5rem; padding:2rem; text-align:center;
+      border:1px solid rgba(239,68,68,.3); border-radius:var(--radius);
+      background:rgba(239,68,68,.06);
+    ">
+      <div style="font-size:3rem;margin-bottom:.8rem">🚫🍌</div>
+      <div style="font-family:Syne,sans-serif;font-weight:800;font-size:1.1rem;
+                  color:#ef4444;margin-bottom:.5rem">No Banana Detected</div>
+      <div style="font-size:.82rem;color:var(--muted);max-width:360px;margin:0 auto">
+        ${message || 'Please upload a clear photo of a banana.'}
+      </div>
+      <div style="margin-top:1.2rem;font-size:.75rem;color:var(--muted)">
+        Tips: good lighting · banana fills most of the frame · avoid blur
+      </div>
+    </div>`;
+}
+
+// ── Predict ───────────────────────────────────────────────────────────────────
+async function runPredict() {
+  if (!currentFile) return;
+  const model = document.getElementById('modelSelect').value;
+  const gradcam = document.getElementById('gradcamSelect').value;
+
+  document.getElementById('classifyEmpty').style.display = 'none';
+  document.getElementById('classifyResults').style.display = 'none';
+  document.getElementById('classifyResults').innerHTML = `
+    <div class="results-grid">
+      <div style="display:flex;flex-direction:column;gap:.8rem">
+        <div class="result-image-wrapper">
+          <img id="origImg" src="" alt="Original"/>
+          <div class="img-label">Original</div>
+        </div>
+        <div class="result-image-wrapper" id="gradcamWrapper">
+          <img id="gradcamImg" src="" alt="Detected"/>
+          <div class="img-label">Detected</div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="confidence-section">
+            <div class="conf-header">
+              <div class="conf-title">Confidence Scores</div>
+              <div class="pred-badge" id="predBadge"></div>
+            </div>
+            <div id="confBars"></div>
+            <div style="margin-top:.8rem;font-size:.72rem;color:var(--muted)">
+              Model: <span id="modelUsed" style="color:var(--text)">—</span>
+              <span class="ms-tag" id="msTag"></span>
+            </div>
+          </div>
+          <div class="recipe-card" id="recipeCard"></div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('classifyLoading').style.display = 'block';
+  document.getElementById('predictBtn').disabled = true;
+
+  const fd = new FormData();
+  fd.append('file', currentFile);
+  fd.append('model_name', model);
+  fd.append('use_gradcam', gradcam);
+
+  try {
+    const r = await fetch(`${API}/predict`, { method:'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderPrediction(d, currentFile);
+  } catch(e) {
+    alert('Prediction failed: ' + e.message);
+  } finally {
+    document.getElementById('classifyLoading').style.display = 'none';
+    document.getElementById('predictBtn').disabled = false;
+  }
+}
+
+function renderPrediction(d, file) {
+  // Handle no-banana rejection
+  if (d.error === 'no_banana') {
+    showNoBanana('classifyResults', d.message);
+    return;
+  }
+
+  // Original image
+  const origUrl = URL.createObjectURL(file);
+  document.getElementById('origImg').src = origUrl;
+
+  // Annotated image (bbox drawn on original) — shown if detector ran
+  const gcWrapper = document.getElementById('gradcamWrapper');
+  if (d.detection && d.detection.annotated_b64) {
+    document.getElementById('gradcamImg').src =
+      'data:image/png;base64,' + d.detection.annotated_b64;
+    document.getElementById('gradcamWrapper').querySelector('.img-label').textContent =
+      `Detected  ${d.detection.det_score ? (d.detection.det_score*100).toFixed(0)+'%' : ''}`;
+    gcWrapper.style.display = 'block';
+  } else if (d.gradcam_b64) {
+    document.getElementById('gradcamImg').src = 'data:image/png;base64,' + d.gradcam_b64;
+    document.getElementById('gradcamWrapper').querySelector('.img-label').textContent = 'Grad-CAM Heatmap';
+    gcWrapper.style.display = 'block';
+  } else {
+    gcWrapper.style.display = 'none';
+  }
+
+  // Confidence badge + bars
+  const color = CLASS_COLORS[d.class] || '#888';
+  document.getElementById('predBadge').innerHTML =
+    `<span style="color:${color}">${d.recipe.emoji}</span> <span style="color:${color};font-size:.85rem">${d.class}</span>`;
+  renderConfBars('confBars', d.confidences, d.class);
+  document.getElementById('modelUsed').textContent = d.model;
+  document.getElementById('msTag').textContent = d.ms ? `· ${d.ms}ms` : '';
+
+  // Recipe
+  renderRecipe('recipeCard', d.recipe);
+
+  document.getElementById('classifyResults').style.display = 'block';
+}
+
+function renderConfBars(containerId, confidences, predicted) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  const order = ['ripe','unripe','overripe','rotten'];
+  order.forEach(cls => {
+    const pct = ((confidences[cls] || 0) * 100).toFixed(1);
+    const color = CLASS_COLORS[cls];
+    const bold = cls === predicted ? `font-weight:600;color:var(--text)` : '';
+    el.innerHTML += `
+      <div class="conf-row">
+        <div class="conf-label" style="${bold}">${cls}</div>
+        <div class="conf-bar-track">
+          <div class="conf-bar-fill" style="background:${color};width:0" data-pct="${pct}"></div>
+        </div>
+        <div class="conf-pct" style="color:${color}">${pct}%</div>
+      </div>`;
+  });
+  // Animate bars after paint
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.querySelectorAll('.conf-bar-fill').forEach(b => {
+      b.style.width = b.dataset.pct + '%';
+    });
+  }));
+}
+
+function renderRecipe(containerId, recipe) {
+  const el = document.getElementById(containerId);
+  const pills = recipe.recipes.map(r =>
+    `<div class="recipe-pill">${r.name} <span>${r.time}</span></div>`
+  ).join('');
+  el.innerHTML = `
+    <div class="recipe-header">
+      <div class="recipe-emoji">${recipe.emoji}</div>
+      <div>
+        <div class="recipe-title" style="color:${recipe.color}">${recipe.status}</div>
+      </div>
+    </div>
+    <div class="recipe-desc">${recipe.description}</div>
+    <div class="recipe-tip">💡 ${recipe.tips}</div>
+    <div class="recipe-list">${pills}</div>
+  `;
+}
+
+function clearResults() {
+  currentFile = null;
+  document.getElementById('classifyResults').style.display = 'none';
+  document.getElementById('classifyEmpty').style.display = 'block';
+  document.getElementById('predictBtn').disabled = true;
+  const dz = document.getElementById('dropzone');
+  dz.querySelector('.dz-icon').textContent = '📸';
+  const lbl = dz.querySelector('.dz-label');
+  lbl.textContent = 'Drop image here or click to upload';
+  lbl.style.color = '';
+}
+
+// ── Compare ───────────────────────────────────────────────────────────────────
+async function runCompare() {
+  if (!compareFile) return;
+  document.getElementById('compareResults').style.display = 'none';
+  document.getElementById('compareLoading').style.display = 'block';
+  document.getElementById('compareBtn').disabled = true;
+
+  const fd = new FormData();
+  fd.append('file', compareFile);
+
+  try {
+    const r = await fetch(`${API}/compare`, { method:'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderCompare(d);
+  } catch(e) {
+    alert('Compare failed: ' + e.message);
+  } finally {
+    document.getElementById('compareLoading').style.display = 'none';
+    document.getElementById('compareBtn').disabled = false;
+  }
+}
+
+function renderCompare(data) {
+  document.getElementById('compareFilename').textContent = data.filename || '';
+  const grid = document.getElementById('compareGrid');
+  grid.innerHTML = '';
+
+  // Find best model
+  const best = data.results.reduce((a,b) =>
+    (b.confidence || 0) > (a.confidence || 0) ? b : a, data.results[0] || {});
+
+  data.results.forEach(res => {
+    if (res.error) {
+      grid.innerHTML += `
+        <div class="compare-card">
+          <div class="compare-card-header">
+            <div class="model-name">${res.model}</div>
+            <div style="font-size:.7rem;color:var(--rotten)">Error</div>
+          </div>
+          <div style="padding:1.5rem;color:var(--muted);font-size:.8rem">${res.error}</div>
+        </div>`;
+      return;
+    }
+    const color  = CLASS_COLORS[res.class] || '#888';
+    const isWinner = res.model === best.model;
+    const gcSrc  = res.gradcam_b64 ? `data:image/png;base64,${res.gradcam_b64}` : '';
+    const origSrc = URL.createObjectURL(compareFile);
+
+    grid.innerHTML += `
+      <div class="compare-card">
+        <div class="compare-card-header">
+          <div class="model-name">${res.model}</div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            ${isWinner ? '<span class="compare-winner">Best</span>' : ''}
+            <span style="color:${color};font-family:Syne,sans-serif;font-weight:700;font-size:.8rem">
+              ${res.class} ${res.recipe?.emoji||''}
+            </span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+          <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
+            <img src="${origSrc}" style="width:100%;height:100%;object-fit:contain"/>
+          </div>
+          <div style="aspect-ratio:1/1;background:#000;overflow:hidden">
+            ${gcSrc ? `<img src="${gcSrc}" style="width:100%;height:100%;object-fit:contain"/>` :
+              `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:.72rem">No Grad-CAM</div>`}
+          </div>
+        </div>
+        <div style="padding:1rem">
+          <div id="cmp-bars-${res.model}"></div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:.6rem">${res.ms}ms</div>
+        </div>
+      </div>`;
+  });
+
+  // Render bars after DOM update
+  setTimeout(() => {
+    data.results.forEach(res => {
+      if (!res.error && res.confidences)
+        renderConfBars(`cmp-bars-${res.model}`, res.confidences, res.class);
+    });
+  }, 50);
+
+  document.getElementById('compareResults').style.display = 'block';
+}
+
+// ── Real-time webcam ──────────────────────────────────────────────────────────
+async function startWebcam() {
+  try {
+    webcamStream = await navigator.mediaDevices.getUserMedia({video:true});
+    const vid = document.getElementById('webcamVideo');
+    vid.srcObject = webcamStream;
+    document.getElementById('startCamBtn').style.display = 'none';
+    document.getElementById('stopCamBtn').style.display = 'inline-flex';
+    document.getElementById('webcamOverlay').style.display = 'block';
+    // Start classifying every 1.5s
+    rtInterval = setInterval(captureAndClassify, 1500);
+  } catch(e) {
+    alert('Camera access denied: ' + e.message);
+  }
+}
+
+function stopWebcam() {
+  clearInterval(rtInterval);
+  if (webcamStream) webcamStream.getTracks().forEach(t => t.stop());
+  webcamStream = null;
+  document.getElementById('webcamVideo').srcObject = null;
+  document.getElementById('startCamBtn').style.display = 'inline-flex';
+  document.getElementById('stopCamBtn').style.display = 'none';
+  document.getElementById('webcamOverlay').style.display = 'none';
+}
+
+async function captureAndClassify() {
+  const vid = document.getElementById('webcamVideo');
+  const canvas = document.getElementById('webcamCanvas');
+  canvas.width  = vid.videoWidth  || 224;
+  canvas.height = vid.videoHeight || 224;
+  canvas.getContext('2d').drawImage(vid, 0, 0);
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    const fd = new FormData();
+    fd.append('file', blob, 'frame.jpg');
+    fd.append('model_name', rtModel);
+    fd.append('use_gradcam', 'false');
+    try {
+      const r = await fetch(`${API}/predict`, {method:'POST', body:fd});
+      const d = await r.json();
+      const color = CLASS_COLORS[d.class] || '#fff';
+      document.getElementById('webcamPred').textContent =
+        `${d.recipe?.emoji||''} ${d.class}`;
+      document.getElementById('webcamPred').style.color = color;
+      document.getElementById('webcamConf').textContent =
+        `${(d.confidence*100).toFixed(1)}% confidence · ${d.ms}ms`;
+      renderConfBars('rtConfBars', d.confidences, d.class);
+    } catch {}
+  }, 'image/jpeg', 0.8);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const r = await fetch(`${API}/history?limit=100`);
+    const d = await r.json();
+    renderHistory(d.history);
+  } catch(e) {
+    document.getElementById('historyContent').innerHTML =
+      '<div class="empty" style="padding:2rem"><div class="empty-sub">Failed to load history</div></div>';
+  }
+}
+
+function renderHistory(history) {
+  const el = document.getElementById('historyContent');
+  if (!history.length) {
+    el.innerHTML = `<div class="empty" style="padding:3rem">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">No history yet</div>
+      <div class="empty-sub">Run a classification to see results here</div>
+    </div>`;
+    return;
+  }
+  const rows = history.map(h => {
+    const color = CLASS_COLORS[h.predicted] || '#888';
+    const ts    = new Date(h.timestamp).toLocaleString();
+    const conf  = (h.confidence * 100).toFixed(1);
+    const thumb = h.gradcam_b64
+      ? `<img class="history-thumb" src="data:image/png;base64,${h.gradcam_b64}" title="Grad-CAM"/>`
+      : '—';
+    return `<tr>
+      <td>${thumb}</td>
+      <td style="font-size:.72rem;color:var(--muted)">${ts}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.filename||'—'}</td>
+      <td><code style="font-size:.72rem">${h.model}</code></td>
+      <td><span class="badge" style="background:${color}22;color:${color}">${h.predicted}</span></td>
+      <td style="color:${color};font-weight:600">${conf}%</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table class="history-table">
+      <thead><tr>
+        <th>Grad-CAM</th><th>Time</th><th>File</th>
+        <th>Model</th><th>Prediction</th><th>Confidence</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Snap & Classify ───────────────────────────────────────────────────────────
+let snapStream = null;
+let snapCapturedBlob = null;
+
+async function startSnapCam() {
+  try {
+    snapStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const vid = document.getElementById('snapVideo');
+    vid.srcObject = snapStream;
+    vid.style.display = 'block';
+    document.getElementById('snapPlaceholder').style.display = 'none';
+    document.getElementById('snapFrozen').style.display = 'none';
+    document.getElementById('snapStartBtn').style.display = 'none';
+    document.getElementById('snapStopBtn').style.display = 'inline-flex';
+    document.getElementById('snapTakeBtn').style.display = 'inline-flex';
+    document.getElementById('snapRetakeBtn').style.display = 'none';
+    // Reset results
+    resetSnapResults();
+  } catch(e) {
+    alert('Camera access denied: ' + e.message);
+  }
+}
+
+function stopSnapCam() {
+  if (snapStream) {
+    snapStream.getTracks().forEach(t => t.stop());
+    snapStream = null;
+  }
+  const vid = document.getElementById('snapVideo');
+  vid.srcObject = null;
+  vid.style.display = 'none';
+  document.getElementById('snapFrozen').style.display = 'none';
+  document.getElementById('snapPlaceholder').style.display = 'block';
+  document.getElementById('snapStartBtn').style.display = 'inline-flex';
+  document.getElementById('snapStopBtn').style.display = 'none';
+  document.getElementById('snapTakeBtn').style.display = 'none';
+  document.getElementById('snapRetakeBtn').style.display = 'none';
+  resetSnapResults();
+}
+
+function retakeSnap() {
+  // Unfreeze — show live video again
+  const vid = document.getElementById('snapVideo');
+  vid.style.display = 'block';
+  document.getElementById('snapFrozen').style.display = 'none';
+  document.getElementById('snapTakeBtn').style.display = 'inline-flex';
+  document.getElementById('snapRetakeBtn').style.display = 'none';
+  snapCapturedBlob = null;
+  resetSnapResults();
+}
+
+function resetSnapResults() {
+  document.getElementById('snapConfCard').style.display = 'none';
+  document.getElementById('snapGradcamCard').style.display = 'none';
+  document.getElementById('snapRecipeCard').style.display = 'none';
+  document.getElementById('snapLoading').style.display = 'none';
+  document.getElementById('snapIdle').style.display = 'block';
+}
+
+async function takeSnap() {
+  const vid = document.getElementById('snapVideo');
+  const canvas = document.getElementById('snapCanvas');
+  canvas.width  = vid.videoWidth  || 640;
+  canvas.height = vid.videoHeight || 480;
+  canvas.getContext('2d').drawImage(vid, 0, 0);
+
+  // Flash effect
+  const flash = document.getElementById('snapFlash');
+  flash.style.display = 'block';
+  flash.style.opacity = '1';
+  flash.style.transition = 'opacity 0s';
+  setTimeout(() => {
+    flash.style.transition = 'opacity 0.4s ease';
+    flash.style.opacity = '0';
+    setTimeout(() => { flash.style.display = 'none'; }, 400);
+  }, 30);
+
+  // Freeze frame
+  const frozen = document.getElementById('snapFrozen');
+  frozen.src = canvas.toDataURL('image/jpeg', 0.92);
+  frozen.style.display = 'block';
+  vid.style.display = 'none';
+  document.getElementById('snapTakeBtn').style.display = 'none';
+  document.getElementById('snapRetakeBtn').style.display = 'inline-flex';
+
+  // Convert canvas to blob and classify
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    snapCapturedBlob = blob;
+    await classifySnap(blob);
+  }, 'image/jpeg', 0.92);
+}
+
+async function classifySnap(blob) {
+  const model = document.getElementById('snapModelSelect').value;
+
+  document.getElementById('snapIdle').style.display = 'none';
+  document.getElementById('snapLoading').style.display = 'block';
+  document.getElementById('snapConfCard').style.display = 'none';
+  document.getElementById('snapGradcamCard').style.display = 'none';
+  document.getElementById('snapRecipeCard').style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('file', blob, 'snap.jpg');
+  fd.append('model_name', model);
+  fd.append('use_gradcam', 'true');
+
+  try {
+    const r = await fetch(`${API}/predict`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    renderSnapResult(d);
+  } catch(e) {
+    document.getElementById('snapLoading').style.display = 'none';
+    document.getElementById('snapIdle').style.display = 'block';
+    alert('Classification failed: ' + e.message);
+  }
+}
+
+function renderSnapResult(d) {
+  document.getElementById('snapLoading').style.display = 'none';
+
+  // No banana detected
+  if (d.error === 'no_banana') {
+    document.getElementById('snapIdle').style.display = 'none';
+    document.getElementById('snapConfCard').style.display = 'none';
+    document.getElementById('snapGradcamCard').style.display = 'none';
+    document.getElementById('snapRecipeCard').innerHTML = `
+      <div style="padding:2rem;text-align:center;
+                  border:1px solid rgba(239,68,68,.3);
+                  background:rgba(239,68,68,.06);border-radius:var(--radius)">
+        <div style="font-size:2.5rem;margin-bottom:.6rem">🚫🍌</div>
+        <div style="font-family:Syne,sans-serif;font-weight:800;color:#ef4444;
+                    font-size:1rem;margin-bottom:.4rem">No Banana Detected</div>
+        <div style="font-size:.78rem;color:var(--muted)">${d.message}</div>
+        <div style="margin-top:.8rem;font-size:.73rem;color:var(--muted)">
+          Tips: good lighting · banana fills most of the frame · avoid blur
+        </div>
+      </div>`;
+    document.getElementById('snapRecipeCard').style.display = 'block';
+    return;
+  }
+
+  const color  = CLASS_COLORS[d.class] || '#888';
+  const recipe = d.recipe;
+
+  // Confidence badge + bars
+  document.getElementById('snapPredBadge').innerHTML =
+    `<span style="color:${color}">${recipe.emoji}</span> <span style="color:${color};font-size:.85rem">${d.class}</span>`;
+  renderConfBars('snapConfBars', d.confidences, d.class);
+  document.getElementById('snapModelUsed').textContent = d.model;
+  document.getElementById('snapMsTag').textContent = d.ms ? `· ${d.ms}ms` : '';
+  document.getElementById('snapConfCard').style.display = 'block';
+
+  // Show bbox annotated image if detection ran, else Grad-CAM
+  const gcImg  = document.getElementById('snapGradcamImg');
+  const gcCard = document.getElementById('snapGradcamCard');
+  const gcLbl  = gcCard.querySelector('.img-label');
+  if (d.detection && d.detection.annotated_b64) {
+    gcImg.src = 'data:image/png;base64,' + d.detection.annotated_b64;
+    gcLbl.textContent = `Detected  ${d.detection.det_score ? (d.detection.det_score*100).toFixed(0)+'%' : ''}`;
+    gcCard.style.display = 'block';
+  } else if (d.gradcam_b64) {
+    gcImg.src = 'data:image/png;base64,' + d.gradcam_b64;
+    gcLbl.textContent = 'Grad-CAM Heatmap';
+    gcCard.style.display = 'block';
+  }
+
+  // Verdict banner
+  const verdict = document.getElementById('snapVerdict');
+  verdict.style.background = color + '18';
+  verdict.style.border = `1px solid ${color}40`;
+  document.getElementById('snapVerdictEmoji').textContent = recipe.emoji;
+  document.getElementById('snapVerdictTitle').style.color = color;
+  document.getElementById('snapVerdictTitle').textContent = recipe.status;
+  document.getElementById('snapVerdictDesc').textContent = recipe.description;
+
+  // Tip
+  document.getElementById('snapTip').textContent = '💡 ' + recipe.tips;
+
+  // Recipe pills
+  const pills = recipe.recipes.map(r =>
+    `<div class="recipe-pill">${r.name} <span>${r.time}</span></div>`
+  ).join('');
+  document.getElementById('snapRecipeList').innerHTML = pills;
+  document.getElementById('snapRecipeCard').style.display = 'block';
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+async function loadHistory() {
+  try {
+    const r = await fetch(`${API}/history?limit=100`);
+    const d = await r.json();
+    renderHistory(d.history);
+  } catch(e) {
+    document.getElementById('historyContent').innerHTML =
+      '<div class="empty" style="padding:2rem"><div class="empty-sub">Failed to load history</div></div>';
+  }
+}
+
+function renderHistory(history) {
+  const el = document.getElementById('historyContent');
+  if (!history.length) {
+    el.innerHTML = `<div class="empty" style="padding:3rem">
+      <div class="empty-icon">📋</div>
+      <div class="empty-text">No history yet</div>
+      <div class="empty-sub">Run a classification to see results here</div>
+    </div>`;
+    return;
+  }
+  const rows = history.map(h => {
+    const color = CLASS_COLORS[h.predicted] || '#888';
+    const ts    = new Date(h.timestamp).toLocaleString();
+    const conf  = (h.confidence * 100).toFixed(1);
+    const thumb = h.gradcam_b64
+      ? `<img class="history-thumb" src="data:image/png;base64,${h.gradcam_b64}" title="Grad-CAM"/>`
+      : '—';
+    return `<tr>
+      <td>${thumb}</td>
+      <td style="font-size:.72rem;color:var(--muted)">${ts}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.filename||'—'}</td>
+      <td><code style="font-size:.72rem">${h.model}</code></td>
+      <td><span class="badge" style="background:${color}22;color:${color}">${h.predicted}</span></td>
+      <td style="color:${color};font-weight:600">${conf}%</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <table class="history-table">
+      <thead><tr>
+        <th>Grad-CAM</th><th>Time</th><th>File</th>
+        <th>Model</th><th>Prediction</th><th>Confidence</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function clearHistory() {
+  if (!confirm('Clear all inference history?')) return;
+  await fetch(`${API}/history`, {method:'DELETE'});
+  loadHistory();
+}
+</script>
+</body>
+</html>

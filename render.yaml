@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: banana-ripeness-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free          # 512 MB RAM — works with 1 model loaded
+    envVars:
+      - key: PORT
+        value: 10000    # Render's free tier uses port 10000
+    healthCheckPath: /health
+    # Free tier sleeps after 15 min of inactivity.
+    # First request after sleep takes ~30s to wake up.
+    # Upgrade to Starter ($7/mo) for always-on.

@@ -1,0 +1,130 @@
+name: ML Pipeline (ClearML)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Trigger
+# ─────────────────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only re-run the ML pipeline when these files change.
+      # Changing only the frontend/README won't waste 4+ hours of training.
+      - "s1_rebuild.py"
+      - "s2_preprocess.py"
+      - "s3_train_model.py"
+      - "s4_hpo.py"
+      - "s5_final_model.py"
+      - "pipeline_controller.py"
+      - "data/**"
+
+  workflow_dispatch:          # allow manual trigger from GitHub Actions UI
+    inputs:
+      run_mode:
+        description: "Run mode: full (all stages) or hpo_only (stages 4+5)"
+        required: false
+        default: "full"
+        type: choice
+        options: [full, hpo_only]
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Jobs
+# ─────────────────────────────────────────────────────────────────────────────
+jobs:
+
+  run-clearml-pipeline:
+    name: Trigger ClearML Pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout code ───────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ───────────────────────────────────────────────────
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      # ── 3. Install dependencies ────────────────────────────────────────────
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install clearml
+
+      # ── 4. Configure ClearML using GitHub Secrets ─────────────────────────
+      # Secrets required in GitHub → Settings → Secrets and variables → Actions:
+      #   CLEARML_API_HOST       e.g. https://api.clear.ml
+      #   CLEARML_API_ACCESS_KEY your ClearML access key
+      #   CLEARML_API_SECRET_KEY your ClearML secret key
+      #
+      # Get them from: app.clear.ml → Settings → Workspace → Create credentials
+      - name: Configure ClearML credentials
+        env:
+          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
+          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+        run: |
+          # Write clearml.conf so the SDK finds credentials without prompting
+          mkdir -p ~/.clearml
+          cat > ~/clearml.conf << EOF
+          api {
+              web_server:   ${CLEARML_API_HOST/api./app.}
+              api_server:   ${CLEARML_API_HOST}
+              files_server: ${CLEARML_API_HOST/api./files.}
+              credentials {
+                  access_key: "${CLEARML_API_ACCESS_KEY}"
+                  secret_key: "${CLEARML_API_SECRET_KEY}"
+              }
+          }
+          EOF
+          echo "ClearML credentials written."
+
+      # ── 5. Verify ClearML connection ───────────────────────────────────────
+      - name: Verify ClearML connection
+        env:
+          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
+          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+        run: |
+          python - << 'PYEOF'
+          from clearml import Task
+          print("ClearML SDK version:", Task.__module__)
+          # Quick ping — creates a test task then immediately closes it
+          t = Task.init(project_name="Banana Ripeness",
+                        task_name="CI/CD connection check",
+                        task_type=Task.TaskTypes.testing,
+                        reuse_last_task_id=False)
+          t.close()
+          print("ClearML connection OK")
+          PYEOF
+
+      # ── 6. Run the pipeline ────────────────────────────────────────────────
+      # pipeline_controller.py is self-contained and calls
+      # pipe.start_locally(run_pipeline_steps_locally=True)
+      # This enqueues all 5 stages as ClearML Tasks visible in the dashboard.
+      - name: Run ClearML pipeline
+        env:
+          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
+          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
+        run: |
+          echo "Run mode: ${{ github.event.inputs.run_mode || 'full' }}"
+          python pipeline_controller.py \
+            --epochs 50 \
+            --hpo_trials 15 \
+            --batch_size 32
+
+      # ── 7. Upload pipeline results as GitHub Actions artifact ──────────────
+      - name: Upload HPO results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hpo-results-${{ github.run_number }}
+          path: |
+            results_hpo/hpo_results.json
+            results_final/results.json
+            results_final/classification_report.txt
+          if-no-files-found: ignore
+          retention-days: 30
