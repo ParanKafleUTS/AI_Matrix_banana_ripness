@@ -556,6 +556,21 @@
           </div>
         </div>
 
+        <!-- No banana message — separate element, never replaces recipe card -->
+        <div id="snapNoBanana" style="display:none;margin-top:1rem">
+          <div style="padding:2rem;text-align:center;
+                      border:1px solid rgba(239,68,68,.3);
+                      background:rgba(239,68,68,.06);border-radius:var(--radius)">
+            <div style="font-size:2.5rem;margin-bottom:.6rem">🚫🍌</div>
+            <div style="font-family:Syne,sans-serif;font-weight:800;color:#ef4444;
+                        font-size:1rem;margin-bottom:.4rem">No Banana Detected</div>
+            <div id="snapNoBananaMsg" style="font-size:.78rem;color:var(--muted)"></div>
+            <div style="margin-top:.8rem;font-size:.73rem;color:var(--muted)">
+              Tips: good lighting · banana fills most of the frame · avoid blur
+            </div>
+          </div>
+        </div>
+
         <!-- Recipe -->
         <div id="snapRecipeCard" style="display:none;margin-top:1rem" class="card">
           <div style="padding:1.2rem">
@@ -692,7 +707,7 @@
 
 
 <script>
-const API = 'https://parankafle11-banana-ripeness.hf.space';  // same origin; change to 'http://YOUR_SERVER:8000' if hosted elsewhere
+const API = '';  // same origin; change to 'http://YOUR_SERVER:8000' if hosted elsewhere
 let currentFile = null;
 let compareFile = null;
 let webcamStream = null;
@@ -1217,11 +1232,12 @@ function retakeSnap() {
 }
 
 function resetSnapResults() {
-  document.getElementById('snapConfCard').style.display = 'none';
-  document.getElementById('snapGradcamCard').style.display = 'none';
-  document.getElementById('snapRecipeCard').style.display = 'none';
-  document.getElementById('snapLoading').style.display = 'none';
-  document.getElementById('snapIdle').style.display = 'block';
+  hide('snapConfCard');
+  hide('snapGradcamCard');
+  hide('snapRecipeCard');
+  hide('snapNoBanana');
+  hide('snapLoading');
+  show('snapIdle');
 }
 
 async function takeSnap() {
@@ -1266,6 +1282,7 @@ async function classifySnap(blob) {
   document.getElementById('snapConfCard').style.display = 'none';
   document.getElementById('snapGradcamCard').style.display = 'none';
   document.getElementById('snapRecipeCard').style.display = 'none';
+  hide('snapNoBanana');
 
   const fd = new FormData();
   fd.append('file', blob, 'snap.jpg');
@@ -1286,25 +1303,16 @@ async function classifySnap(blob) {
 
 function renderSnapResult(d) {
   hide('snapLoading');
+  hide('snapNoBanana');
 
-  // No banana detected
+  // No banana detected — show separate div, never touch snapRecipeCard
   if (d.error === 'no_banana') {
     hide('snapIdle');
     hide('snapConfCard');
     hide('snapGradcamCard');
-    setHTML('snapRecipeCard', `
-      <div style="padding:2rem;text-align:center;
-                  border:1px solid rgba(239,68,68,.3);
-                  background:rgba(239,68,68,.06);border-radius:var(--radius)">
-        <div style="font-size:2.5rem;margin-bottom:.6rem">🚫🍌</div>
-        <div style="font-family:Syne,sans-serif;font-weight:800;color:#ef4444;
-                    font-size:1rem;margin-bottom:.4rem">No Banana Detected</div>
-        <div style="font-size:.78rem;color:var(--muted)">${d.message}</div>
-        <div style="margin-top:.8rem;font-size:.73rem;color:var(--muted)">
-          Tips: good lighting · banana fills most of the frame · avoid blur
-        </div>
-      </div>`);
-    show('snapRecipeCard');
+    hide('snapRecipeCard');
+    setText('snapNoBananaMsg', d.message || 'Please point the camera at a banana.');
+    show('snapNoBanana');
     return;
   }
 
