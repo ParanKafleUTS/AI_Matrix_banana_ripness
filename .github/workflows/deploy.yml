@@ -32,7 +32,7 @@ jobs:
 
       - name: Upload files to HF Space
         env:
-          HF_TOKEN:      ${{ secrets.HF_TOKEN }}
+          HUGGING_FACE_HUB_TOKEN:      ${{ secrets.HF_TOKEN }}
           HF_USERNAME:   ${{ secrets.HF_USERNAME }}
           HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
@@ -64,7 +64,6 @@ jobs:
                       path_in_repo    = repo_path,
                       repo_id         = repo_id,
                       repo_type       = "space",
-                      token           = token,
                   )
                   print(f"  ✓ {repo_path}")
               else:
