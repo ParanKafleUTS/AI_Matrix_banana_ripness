@@ -706,6 +706,28 @@ const CLASS_COLORS = {
   unripe:   '#84cc16',
 };
 
+// ── Safe DOM helpers — prevents "Cannot read properties of null" errors ───────
+function show(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'block';
+}
+function hide(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+function setHTML(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+function setStyle(id, prop, val) {
+  const el = document.getElementById(id);
+  if (el) el.style[prop] = val;
+}
+
 // ── Health check ─────────────────────────────────────────────────────────────
 async function checkHealth() {
   try {
@@ -899,6 +921,7 @@ function renderPrediction(d, file) {
 
 function renderConfBars(containerId, confidences, predicted) {
   const el = document.getElementById(containerId);
+  if (!el) return;
   el.innerHTML = '';
   const order = ['ripe','unripe','overripe','rotten'];
   order.forEach(cls => {
@@ -914,7 +937,6 @@ function renderConfBars(containerId, confidences, predicted) {
         <div class="conf-pct" style="color:${color}">${pct}%</div>
       </div>`;
   });
-  // Animate bars after paint
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.querySelectorAll('.conf-bar-fill').forEach(b => {
       b.style.width = b.dataset.pct + '%';
@@ -924,6 +946,7 @@ function renderConfBars(containerId, confidences, predicted) {
 
 function renderRecipe(containerId, recipe) {
   const el = document.getElementById(containerId);
+  if (!el || !recipe) return;
   const pills = recipe.recipes.map(r =>
     `<div class="recipe-pill">${r.name} <span>${r.time}</span></div>`
   ).join('');
@@ -1262,14 +1285,14 @@ async function classifySnap(blob) {
 }
 
 function renderSnapResult(d) {
-  document.getElementById('snapLoading').style.display = 'none';
+  hide('snapLoading');
 
   // No banana detected
   if (d.error === 'no_banana') {
-    document.getElementById('snapIdle').style.display = 'none';
-    document.getElementById('snapConfCard').style.display = 'none';
-    document.getElementById('snapGradcamCard').style.display = 'none';
-    document.getElementById('snapRecipeCard').innerHTML = `
+    hide('snapIdle');
+    hide('snapConfCard');
+    hide('snapGradcamCard');
+    setHTML('snapRecipeCard', `
       <div style="padding:2rem;text-align:center;
                   border:1px solid rgba(239,68,68,.3);
                   background:rgba(239,68,68,.06);border-radius:var(--radius)">
@@ -1280,8 +1303,8 @@ function renderSnapResult(d) {
         <div style="margin-top:.8rem;font-size:.73rem;color:var(--muted)">
           Tips: good lighting · banana fills most of the frame · avoid blur
         </div>
-      </div>`;
-    document.getElementById('snapRecipeCard').style.display = 'block';
+      </div>`);
+    show('snapRecipeCard');
     return;
   }
 
@@ -1289,45 +1312,45 @@ function renderSnapResult(d) {
   const recipe = d.recipe;
 
   // Confidence badge + bars
-  document.getElementById('snapPredBadge').innerHTML =
-    `<span style="color:${color}">${recipe.emoji}</span> <span style="color:${color};font-size:.85rem">${d.class}</span>`;
+  setHTML('snapPredBadge',
+    `<span style="color:${color}">${recipe.emoji}</span> <span style="color:${color};font-size:.85rem">${d.class}</span>`);
   renderConfBars('snapConfBars', d.confidences, d.class);
-  document.getElementById('snapModelUsed').textContent = d.model;
-  document.getElementById('snapMsTag').textContent = d.ms ? `· ${d.ms}ms` : '';
-  document.getElementById('snapConfCard').style.display = 'block';
+  setText('snapModelUsed', d.model);
+  setText('snapMsTag', d.ms ? `· ${d.ms}ms` : '');
+  show('snapConfCard');
 
-  // Show bbox annotated image if detection ran, else Grad-CAM
-  const gcImg  = document.getElementById('snapGradcamImg');
+  // Show bbox annotated image or Grad-CAM
   const gcCard = document.getElementById('snapGradcamCard');
-  const gcLbl  = gcCard.querySelector('.img-label');
-  if (d.detection && d.detection.annotated_b64) {
+  const gcImg  = document.getElementById('snapGradcamImg');
+  const gcLbl  = gcCard ? gcCard.querySelector('.img-label') : null;
+  if (d.detection && d.detection.annotated_b64 && gcImg) {
     gcImg.src = 'data:image/png;base64,' + d.detection.annotated_b64;
-    gcLbl.textContent = `Detected  ${d.detection.det_score ? (d.detection.det_score*100).toFixed(0)+'%' : ''}`;
-    gcCard.style.display = 'block';
-  } else if (d.gradcam_b64) {
+    if (gcLbl) gcLbl.textContent = `Detected  ${d.detection.det_score ? (d.detection.det_score*100).toFixed(0)+'%' : ''}`;
+    show('snapGradcamCard');
+  } else if (d.gradcam_b64 && gcImg) {
     gcImg.src = 'data:image/png;base64,' + d.gradcam_b64;
-    gcLbl.textContent = 'Grad-CAM Heatmap';
-    gcCard.style.display = 'block';
+    if (gcLbl) gcLbl.textContent = 'Grad-CAM Heatmap';
+    show('snapGradcamCard');
   }
 
   // Verdict banner
   const verdict = document.getElementById('snapVerdict');
-  verdict.style.background = color + '18';
-  verdict.style.border = `1px solid ${color}40`;
-  document.getElementById('snapVerdictEmoji').textContent = recipe.emoji;
-  document.getElementById('snapVerdictTitle').style.color = color;
-  document.getElementById('snapVerdictTitle').textContent = recipe.status;
-  document.getElementById('snapVerdictDesc').textContent = recipe.description;
-
-  // Tip
-  document.getElementById('snapTip').textContent = '💡 ' + recipe.tips;
+  if (verdict) {
+    verdict.style.background = color + '18';
+    verdict.style.border = `1px solid ${color}40`;
+  }
+  setText('snapVerdictEmoji', recipe.emoji);
+  setStyle('snapVerdictTitle', 'color', color);
+  setText('snapVerdictTitle', recipe.status);
+  setText('snapVerdictDesc', recipe.description);
+  setText('snapTip', '💡 ' + recipe.tips);
 
   // Recipe pills
   const pills = recipe.recipes.map(r =>
     `<div class="recipe-pill">${r.name} <span>${r.time}</span></div>`
   ).join('');
-  document.getElementById('snapRecipeList').innerHTML = pills;
-  document.getElementById('snapRecipeCard').style.display = 'block';
+  setHTML('snapRecipeList', pills);
+  show('snapRecipeCard');
 }
 
 // ── History ───────────────────────────────────────────────────────────────────
@@ -1387,4 +1410,3 @@ async function clearHistory() {
 </script>
 </body>
 </html>
- 
