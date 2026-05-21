@@ -44,14 +44,11 @@ jobs:
           HF_USERNAME: ${{ secrets.HF_USERNAME }}
           HF_SPACE_NAME: ${{ secrets.HF_SPACE_NAME }}
         run: |
-          # Configure git with HF credentials
           git config --global user.email "github-actions@github.com"
           git config --global user.name  "GitHub Actions"
-          git config --global credential.helper store
-          echo "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co" > ~/.git-credentials
-
-          # Add HF Space as a remote and force-push
-          git remote add hf https://huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME} || true
+          # Embed token directly in URL — works without interactive auth
+          git remote add hf https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME} || \
+          git remote set-url hf https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE_NAME}
           git push hf main --force
 
   # ── Option B: Deploy backend to Render ─────────────────────────────────────
@@ -98,7 +95,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy frontend to Vercel
-        run: vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prod --archive=tgz --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

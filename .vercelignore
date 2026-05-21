@@ -1,0 +1,20 @@
+# Vercel only needs static/index.html
+# Exclude everything else to stay under the free tier upload limit
+
+models/
+*.pth
+data/
+DATA/
+results_*/
+__pycache__/
+*.pyc
+*.db
+*.py
+*.toml
+*.yaml
+*.yml
+*.txt
+*.md
+Dockerfile
+.github/
+.git/
