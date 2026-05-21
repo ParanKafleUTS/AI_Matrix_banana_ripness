@@ -90,7 +90,7 @@ def build_pipeline(args: argparse.Namespace) -> PipelineController:
     # ── Stage 2: Verify & log class distribution ──────────────────────────────
     pipe.add_step(
         name               = "stage_process",
-        parents            = ["stage_data"],
+        parents            = [],
         base_task_project  = "Banana Ripeness",
         base_task_name     = "Pipeline step 2 process dataset",
         parameter_override = {
