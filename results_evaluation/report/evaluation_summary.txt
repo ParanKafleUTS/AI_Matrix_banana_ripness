@@ -1,0 +1,26 @@
+─────────────────────────────────────────────────────────────────
+  EVALUATION SUMMARY — Banana Ripeness Classification
+─────────────────────────────────────────────────────────────────
+  Test split   : test  (1348 images)
+  Device       : cuda
+  Models       : efficientnet, efficientnetv2, mobilenet, resnet
+
+  Model              Accuracy   Mean AUC    Mean AP    ms/img
+  ---------------------------------------------------------
+  efficientnet         0.9904     0.9997     0.9987      3.4ms
+  efficientnetv2       0.9941     0.9999     0.9999      3.0ms  ★ BEST
+  mobilenet            0.9933     0.9993     0.9974      2.2ms
+  resnet               0.9904     0.9992     0.9965      2.9ms
+  ---------------------------------------------------------
+
+  Best model : EFFICIENTNETV2  (accuracy=0.9941)
+
+  Per-class F1 scores:
+  Class             efficientnet  efficientnetv2       mobilenet          resnet
+  ------------------------------------------------------------------------------
+  overripe                0.9926          0.9981          0.9963          0.9963
+  ripe                    0.9963          0.9963          0.9975          0.9925
+  rotten                  0.9868          0.9912          0.9902          0.9869
+  unripe                  0.9841          0.9909          0.9886          0.9864
+
+─────────────────────────────────────────────────────────────────
