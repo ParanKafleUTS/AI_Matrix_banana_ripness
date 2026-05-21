@@ -93,7 +93,6 @@ jobs:
               project='Banana Ripeness',
               version='4.1',
               add_pipeline_tags=True,
-              default_execution_queue='default',
           )
 
           pipe.add_step(
