@@ -54,9 +54,9 @@ NUM_CLASSES   = len(CLASS_NAMES)
 INPUT_SIZE    = 224
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD  = [0.229, 0.224, 0.225]
-MODELS_DIR    = Path("models")
-DB_PATH       = Path("inference_history.db")
-STATIC_DIR    = Path("static")
+MODELS_DIR    = Path(__file__).parent / "models"
+DB_PATH       = Path(__file__).parent / "inference_history.db"
+STATIC_DIR    = Path(__file__).parent / "static"
 
 MODEL_NAMES   = ["efficientnet", "efficientnetv2", "mobilenet", "resnet"]
 
@@ -589,18 +589,19 @@ async def predict(
     result = run_inference(pil_img, model_name, gradcam=use_gradcam)
     ms     = (time.perf_counter() - t0) * 1000
 
-    result["filename"]  = file.filename or "upload.jpg"
-    result["ms"]        = round(ms, 1)
+    result["filename"] = file.filename or "upload.jpg"
+    result["ms"]       = round(ms, 1)
 
-    # Persist to history
-    save_history(
-        filename    = result["filename"],
-        model       = model_name,
-        predicted   = result["class"],
-        confidence  = result["confidence"],
-        confidences = result["confidences"],
-        gradcam_b64 = result.get("gradcam_b64"),
-    )
+    # Only save to history if a banana was actually detected and classified
+    if "class" in result:
+        save_history(
+            filename    = result["filename"],
+            model       = model_name,
+            predicted   = result["class"],
+            confidence  = result["confidence"],
+            confidences = result["confidences"],
+            gradcam_b64 = result.get("gradcam_b64"),
+        )
 
     return result
 

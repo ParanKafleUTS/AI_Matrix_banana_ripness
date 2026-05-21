@@ -1,17 +1,11 @@
-# Production requirements — CPU-only PyTorch (saves ~1.5 GB vs default CUDA build)
-# Used by Dockerfile. For local dev with GPU, use requirements.txt instead.
-
---index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.2.2+cpu
 torchvision==0.17.2+cpu
-
-# Reset index back to PyPI for the rest
---index-url https://pypi.org/simple/
+numpy>=1.24.0,<2.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
 python-multipart>=0.0.9
 pillow>=10.0.0
-numpy>=1.24.0
 matplotlib>=3.7.0
 aiofiles>=23.0.0
 pydantic>=2.0.0
