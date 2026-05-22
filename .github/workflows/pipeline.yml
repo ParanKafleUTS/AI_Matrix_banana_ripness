@@ -1,8 +1,5 @@
 name: ML Pipeline (ClearML)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Trigger — fires when ML scripts change
-# ─────────────────────────────────────────────────────────────────────────────
 on:
   push:
     branches: [main]
@@ -14,6 +11,9 @@ on:
       - "s5_final_model.py"
       - "pipeline_controller.py"
 
+  pull_request:
+    branches: [main]
+
   workflow_dispatch:
 
 jobs:
@@ -21,6 +21,12 @@ jobs:
   trigger-clearml:
     name: Trigger ClearML Pipeline
     runs-on: ubuntu-latest
+
+    # Global env — inherited by every step automatically
+    env:
+      CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
+      CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
+      CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
 
     steps:
       - name: Checkout
@@ -34,11 +40,22 @@ jobs:
       - name: Install ClearML
         run: pip install clearml
 
+      # Debug step — catches empty secrets immediately
+      - name: Debug ENV
+        run: |
+          echo "CLEARML_API_HOST=$CLEARML_API_HOST"
+          if [ -z "$CLEARML_API_HOST" ]; then
+            echo "❌ CLEARML_API_HOST is empty — check GitHub secrets"
+            exit 1
+          fi
+          if [ -z "$CLEARML_API_ACCESS_KEY" ]; then
+            echo "❌ CLEARML_API_ACCESS_KEY is empty — check GitHub secrets"
+            exit 1
+          fi
+          echo "✅ All ClearML secrets present"
+          curl -I $CLEARML_API_HOST || echo "⚠️ Could not reach ClearML host"
+
       - name: Configure ClearML credentials
-        env:
-          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
-          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
-          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
         run: |
           cat > ~/clearml.conf << EOF
           api {
@@ -54,10 +71,6 @@ jobs:
           echo "ClearML credentials written."
 
       - name: Verify ClearML connection
-        env:
-          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
-          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
-          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
         run: |
           python -c "
           from clearml import Task
@@ -71,19 +84,12 @@ jobs:
           print('ClearML connection OK')
           "
 
-      # ── Enqueue pipeline on ClearML — SageMaker agent picks it up ──────────
-      # This does NOT run the pipeline locally in GitHub Actions.
-      # It registers the pipeline task in ClearML and marks it as 'queued'.
-      # Your SageMaker machine running clearml-agent picks it up and runs it
-      # with the actual data and GPU.
+      # Registers pipeline in ClearML and marks as queued.
+      # SageMaker running clearml-agent or manual python pipeline_controller.py
+      # picks it up and runs with actual data and GPU.
       - name: Enqueue ClearML pipeline
-        env:
-          CLEARML_API_HOST:       ${{ secrets.CLEARML_API_HOST }}
-          CLEARML_API_ACCESS_KEY: ${{ secrets.CLEARML_API_ACCESS_KEY }}
-          CLEARML_API_SECRET_KEY: ${{ secrets.CLEARML_API_SECRET_KEY }}
         run: |
           python -c "
-          from clearml import Task
           from clearml.automation import PipelineController
 
           print('Creating pipeline task in ClearML...')
@@ -94,7 +100,6 @@ jobs:
               version='4.1',
               add_pipeline_tags=True,
           )
-
           pipe.add_step(
               name='stage_data',
               base_task_project='Banana Ripeness',
@@ -129,9 +134,8 @@ jobs:
               base_task_name='Pipeline step 5 final model',
               execution_queue='default',
           )
-
           pipe.start(queue='default')
           print('Pipeline enqueued in ClearML!')
           print('View: https://app.clear.ml')
-          print('To run: clearml-agent daemon --queue default --foreground')
+          print('Run on SageMaker: python pipeline_controller.py')
           "
