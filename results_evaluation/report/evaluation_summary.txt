@@ -7,10 +7,10 @@
 
   Model              Accuracy   Mean AUC    Mean AP    ms/img
   ---------------------------------------------------------
-  efficientnet         0.9904     0.9997     0.9987      3.4ms
+  efficientnet         0.9904     0.9997     0.9987      3.2ms
   efficientnetv2       0.9941     0.9999     0.9999      3.0ms  ★ BEST
-  mobilenet            0.9933     0.9993     0.9974      2.2ms
-  resnet               0.9904     0.9992     0.9965      2.9ms
+  mobilenet            0.9933     0.9993     0.9974      2.5ms
+  resnet               0.9904     0.9992     0.9965      2.8ms
   ---------------------------------------------------------
 
   Best model : EFFICIENTNETV2  (accuracy=0.9941)
