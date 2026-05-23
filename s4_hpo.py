@@ -723,6 +723,93 @@ def hpo_one_model(model_name: str) -> dict:
     except Exception:
         pass
 
+    # ── ClearML: Parallel Coordinates plot ───────────────────────────────────
+    try:
+        completed_trials = [t for t in study.trials
+                            if t.value is not None and t.state.name == "COMPLETE"]
+        if len(completed_trials) >= 2:
+            param_names = list(completed_trials[0].params.keys())
+            dimensions  = []
+
+            for p in param_names:
+                vals = [t.params.get(p) for t in completed_trials]
+                if isinstance(vals[0], str):
+                    # Categorical — encode as integers with tick labels
+                    unique = sorted(set(vals))
+                    encoded = [unique.index(v) for v in vals]
+                    dimensions.append(dict(
+                        label    = p,
+                        values   = encoded,
+                        tickvals = list(range(len(unique))),
+                        ticktext = unique,
+                    ))
+                else:
+                    dimensions.append(dict(label=p, values=vals))
+
+            # Add val_acc as the final dimension (colour axis)
+            accs = [t.value for t in completed_trials]
+            dimensions.append(dict(label="val_acc", values=accs))
+
+            # Build parallel coordinates figure using matplotlib
+            # (avoids plotly/kaleido dependency)
+            n_dims = len(dimensions)
+            fig_pc, axes = plt.subplots(1, 1, figsize=(max(12, n_dims * 1.8), 5))
+            fig_pc.patch.set_facecolor("#0d1117")
+            axes.set_facecolor("#0d1117")
+
+            # Normalise each dimension to [0,1] for plotting
+            norm_data = []
+            for dim in dimensions:
+                v = np.array(dim["values"], dtype=float)
+                mn, mx = v.min(), v.max()
+                norm_data.append((v - mn) / (mx - mn + 1e-9))
+            norm_data = np.array(norm_data)  # shape [n_dims, n_trials]
+
+            cmap  = plt.cm.viridis
+            accs_norm = norm_data[-1]   # last dim = val_acc
+
+            xs = np.arange(n_dims)
+            for i in range(len(completed_trials)):
+                color = cmap(accs_norm[i])
+                axes.plot(xs, norm_data[:, i], color=color, alpha=0.55, lw=1.2)
+
+            axes.set_xticks(xs)
+            axes.set_xticklabels([d["label"] for d in dimensions],
+                                  rotation=25, ha="right", color="white", fontsize=9)
+            axes.set_yticks([])
+            axes.tick_params(colors="white")
+            for sp in axes.spines.values():
+                sp.set_edgecolor("#30363d")
+
+            sm = plt.cm.ScalarMappable(cmap=cmap,
+                                        norm=plt.Normalize(min(accs), max(accs)))
+            sm.set_array([])
+            cbar = plt.colorbar(sm, ax=axes, pad=0.02)
+            cbar.set_label("val_acc", color="white", fontsize=9)
+            cbar.ax.yaxis.set_tick_params(color="white")
+            plt.setp(cbar.ax.yaxis.get_ticklabels(), color="white")
+
+            axes.set_title(f"Parallel Coordinates — {model_name}",
+                           color="white", fontsize=11, fontweight="bold")
+            plt.tight_layout()
+
+            pc_path = out / f"{model_name}_parallel_coords.png"
+            fig_pc.savefig(str(pc_path), dpi=120, bbox_inches="tight",
+                           facecolor=fig_pc.get_facecolor())
+            plt.close(fig_pc)
+
+            mlog.report_image(
+                title      = "HPO",
+                series     = "Parallel Coordinates",
+                local_path = str(pc_path),
+                iteration  = 0,
+            )
+            print(f"  ✓  Parallel Coordinates plot saved: {pc_path}")
+        else:
+            print(f"  ⚠  Not enough completed trials for Parallel Coordinates ({len(completed_trials)})")
+    except Exception as e:
+        print(f"  ⚠  Parallel Coordinates plot failed: {e}")
+
     model_task.close()
 
     return {
@@ -792,6 +879,80 @@ print(sep)
 # Log all best val_accs to stage task
 for r in all_hpo_results:
     slog.report_scalar("HPO Best Val Acc", r["model_name"], r["best_val_acc"], 0)
+
+# ── ClearML: HPO Summary table ───────────────────────────────────────────────
+try:
+    headers = ["Model", "Best Val Acc", "LR", "Batch Size",
+               "Dropout", "Optimizer", "Aug Strength"]
+    table   = []
+    for r in all_hpo_results:
+        bp = r.get("best_params", {})
+        table.append([
+            r["model_name"],
+            f"{r['best_val_acc']:.4f}",
+            f"{bp.get('lr', 0):.2e}",
+            str(bp.get("batch_size", "-")),
+            f"{bp.get('dropout', 0):.3f}",
+            bp.get("optimizer", "-"),
+            f"{bp.get('aug_strength', 0):.3f}",
+        ])
+
+    # Plot as a matplotlib table
+    fig_t, ax_t = plt.subplots(figsize=(14, max(3, len(all_hpo_results) * 1.2 + 1.5)))
+    fig_t.patch.set_facecolor("#0d1117")
+    ax_t.set_facecolor("#0d1117")
+    ax_t.axis("off")
+
+    col_widths = [0.14, 0.13, 0.10, 0.10, 0.10, 0.12, 0.13]
+    tbl = ax_t.table(
+        cellText    = table,
+        colLabels   = headers,
+        loc         = "center",
+        cellLoc     = "center",
+        colWidths   = col_widths,
+    )
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(10)
+    tbl.scale(1, 1.8)
+
+    # Style header
+    for j in range(len(headers)):
+        tbl[0, j].set_facecolor("#1F4E79")
+        tbl[0, j].set_text_props(color="white", fontweight="bold")
+
+    # Style rows — highlight best model
+    best_idx = max(range(len(all_hpo_results)),
+                   key=lambda i: all_hpo_results[i]["best_val_acc"])
+    for i, row in enumerate(table):
+        for j in range(len(headers)):
+            if i == best_idx:
+                tbl[i+1, j].set_facecolor("#375623")
+                tbl[i+1, j].set_text_props(color="white", fontweight="bold")
+            elif i % 2 == 0:
+                tbl[i+1, j].set_facecolor("#161b22")
+                tbl[i+1, j].set_text_props(color="#e6edf3")
+            else:
+                tbl[i+1, j].set_facecolor("#0d1117")
+                tbl[i+1, j].set_text_props(color="#e6edf3")
+
+    ax_t.set_title("HPO Summary — Best Parameters per Model",
+                   color="white", fontsize=12, fontweight="bold", pad=20)
+    plt.tight_layout()
+
+    summary_path = out / "hpo_summary_table.png"
+    fig_t.savefig(str(summary_path), dpi=130, bbox_inches="tight",
+                  facecolor=fig_t.get_facecolor())
+    plt.close(fig_t)
+
+    slog.report_image(
+        title      = "HPO Summary",
+        series     = "Summary Table",
+        local_path = str(summary_path),
+        iteration  = 0,
+    )
+    print(f"  ✓  HPO Summary table saved: {summary_path}")
+except Exception as e:
+    print(f"  ⚠  HPO Summary table failed: {e}")
 
 # ── Save final results + artifacts ───────────────────────────────────────────
 final_json = out / "hpo_results.json"

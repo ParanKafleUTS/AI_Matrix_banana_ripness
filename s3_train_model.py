@@ -690,6 +690,84 @@ stage_task.upload_artifact("results_json", str(results_json))
 stage_task.upload_artifact("data_path",    args["data_path"])
 print(f"\n  results.json saved: {results_json}")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Stage-level comparison plots logged to Pipeline step 3 task
+# ─────────────────────────────────────────────────────────────────────────────
+slog = stage_task.get_logger()
+
+# ── 1. Accuracy comparison bar chart ─────────────────────────────────────────
+names   = [r["model_name"]    for r in all_results]
+val_acc = [r["best_val_acc"]  for r in all_results]
+tst_acc = [r["test_acc"]      for r in all_results]
+tta_acc_vals = [r["tta_acc"]  for r in all_results]
+
+x      = np.arange(len(names))
+width  = 0.25
+colors = ["#60a5fa", "#4ade80", "#fbbf24"]
+fig, ax = plt.subplots(figsize=(10, 5))
+for i, (data, label, col) in enumerate(zip(
+        [val_acc, tst_acc, tta_acc_vals],
+        ["Val Acc", "Test Acc", "TTA Acc"], colors)):
+    bars = ax.bar(x + i * width, data, width, label=label, color=col, alpha=0.85)
+    for bar, v in zip(bars, data):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.005,
+                f"{v:.3f}", ha="center", va="bottom", fontsize=8)
+ax.set_xticks(x + width); ax.set_xticklabels(names, fontsize=10)
+ax.set_ylim(0, 1.12); ax.set_ylabel("Accuracy"); ax.legend()
+ax.set_title("Model Accuracy Comparison — Stage 3 Baseline")
+ax.grid(axis="y", alpha=0.3)
+plt.tight_layout()
+slog.report_matplotlib_figure("Comparison", "Accuracy Comparison", fig, 0)
+plt.savefig(str(out / "accuracy_comparison.png"), dpi=150, bbox_inches="tight")
+plt.close()
+
+# ── 2. Per-class F1 heatmap ───────────────────────────────────────────────────
+f1_matrix = np.array([
+    [r["report"][cls]["f1-score"] for cls in CLASS_NAMES]
+    for r in all_results
+])
+fig, ax = plt.subplots(figsize=(9, 4))
+im = ax.imshow(f1_matrix, cmap="RdYlGn", vmin=0.5, vmax=1.0, aspect="auto")
+ax.set_xticks(range(NUM_CLASSES)); ax.set_xticklabels(CLASS_NAMES, fontsize=10)
+ax.set_yticks(range(len(names))); ax.set_yticklabels(names, fontsize=10)
+ax.set_title("F1 Score Heatmap — All Models")
+plt.colorbar(im, ax=ax, label="F1 Score")
+for i in range(len(names)):
+    for j in range(NUM_CLASSES):
+        v = f1_matrix[i, j]
+        ax.text(j, i, f"{v:.3f}", ha="center", va="center",
+                fontsize=10, fontweight="bold",
+                color="black" if v > 0.75 else "white")
+plt.tight_layout()
+slog.report_matplotlib_figure("Comparison", "F1 Heatmap", fig, 0)
+plt.savefig(str(out / "f1_heatmap.png"), dpi=150, bbox_inches="tight")
+plt.close()
+
+# ── 3. Speed vs accuracy scatter ─────────────────────────────────────────────
+fig, ax = plt.subplots(figsize=(8, 5))
+for r, col in zip(all_results, ["#60a5fa", "#a78bfa", "#34d399", "#fb923c"]):
+    ax.scatter(r["ms_per_image"], r["tta_acc"],
+               s=200, color=col, zorder=5, label=r["model_name"])
+    ax.annotate(r["model_name"],
+                (r["ms_per_image"], r["tta_acc"]),
+                textcoords="offset points", xytext=(8, 4), fontsize=9)
+ax.set_xlabel("Inference Speed (ms/image)"); ax.set_ylabel("TTA Accuracy")
+ax.set_title("Speed vs Accuracy Trade-off")
+ax.legend(); ax.grid(alpha=0.3)
+plt.tight_layout()
+slog.report_matplotlib_figure("Comparison", "Speed vs Accuracy", fig, 0)
+plt.savefig(str(out / "speed_vs_accuracy.png"), dpi=150, bbox_inches="tight")
+plt.close()
+
+# ── 4. Summary scalars on stage task ────────────────────────────────────────
+for r in all_results:
+    slog.report_scalar("Stage3 Val Acc",  r["model_name"], r["best_val_acc"], 0)
+    slog.report_scalar("Stage3 Test Acc", r["model_name"], r["test_acc"],     0)
+    slog.report_scalar("Stage3 TTA Acc",  r["model_name"], r["tta_acc"],      0)
+    slog.report_scalar("Stage3 Speed",    r["model_name"], r["ms_per_image"], 0)
+
+print("  Stage-level comparison plots logged to ClearML ✓")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Final comparison summary

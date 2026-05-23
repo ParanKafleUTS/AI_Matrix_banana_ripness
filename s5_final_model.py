@@ -571,9 +571,8 @@ plt.suptitle(f"Training — {model_name}", fontsize=13, fontweight="bold")
 plt.tight_layout()
 curves_path = out / "training_curves.png"
 fig.savefig(curves_path, dpi=150, bbox_inches="tight")
+logger.report_matplotlib_figure("Training", "Curves", fig, 0)   # FIX: log fig directly
 plt.close()
-logger.report_matplotlib_figure("Training", "Curves", fig if False else
-                                plt.figure(), 0)  # re-log via path below
 task.upload_artifact("training_curves", str(curves_path))
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -656,10 +655,9 @@ if test_loader is not None and best_state is not None:
     plt.tight_layout()
     cm_path = out / "confusion_matrix.png"
     fig.savefig(cm_path, dpi=150, bbox_inches="tight")
+    logger.report_matplotlib_figure("Test", "Confusion Matrix", fig, 0)  # FIX: log fig directly
     plt.close()
     task.upload_artifact("confusion_matrix", str(cm_path))
-    logger.report_matplotlib_figure("Test", "Confusion Matrix",
-                                    plt.imread(str(cm_path)), 0)
 
     # ── TTA evaluation ────────────────────────────────────────────────────────
     n_passes = args["tta_passes"]
