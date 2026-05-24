@@ -1,0 +1,28 @@
+{
+  "model_name": "efficientnetv2",
+  "best_val_acc": 0.9951780415430267,
+  "best_epoch": 14,
+  "test_acc": 0.9940652818991098,
+  "tta_acc": 0.9940652818991098,
+  "ms_per_image": 4.070830372403498,
+  "epochs_run": 24,
+  "args": {
+    "data_path": "data",
+    "output_dir": "results_final",
+    "model": "efficientnetv2",
+    "epochs": 50,
+    "unfreeze_after": 5,
+    "patience": 10,
+    "batch_size": 32,
+    "lr": 0.002146403547714585,
+    "weight_decay": 1.0422971466648473e-05,
+    "dropout": 0.3072148657978061,
+    "label_smoothing": 0.15697783311628735,
+    "mixup_alpha": 0.44038598652060645,
+    "aug_strength": 0.6281757761510866,
+    "optimizer": "adamw",
+    "tta_passes": 5,
+    "num_workers": 2,
+    "seed": 42
+  }
+}
