@@ -1,0 +1,63 @@
+[
+  {
+    "model_name": "efficientnet",
+    "best_val_acc": 0.990727002967359,
+    "best_params": {
+      "lr": 0.0025105534443156355,
+      "weight_decay": 0.0008453127704174384,
+      "dropout": 0.19823591989155745,
+      "label_smoothing": 0.05098726177687294,
+      "mixup_alpha": 0.4157198358854339,
+      "aug_strength": 0.4156837697397153,
+      "batch_size": 32,
+      "optimizer": "adamw"
+    },
+    "checkpoint": "results_hpo/efficientnet_hpo_best.pth"
+  },
+  {
+    "model_name": "efficientnetv2",
+    "best_val_acc": 0.9933234421364985,
+    "best_params": {
+      "lr": 0.002146403547714585,
+      "weight_decay": 1.0422971466648473e-05,
+      "dropout": 0.3072148657978061,
+      "label_smoothing": 0.15697783311628735,
+      "mixup_alpha": 0.44038598652060645,
+      "aug_strength": 0.6281757761510866,
+      "batch_size": 32,
+      "optimizer": "adamw"
+    },
+    "checkpoint": "results_hpo/efficientnetv2_hpo_best.pth",
+    "test_acc": 0.9903560830860534
+  },
+  {
+    "model_name": "mobilenet",
+    "best_val_acc": 0.990727002967359,
+    "best_params": {
+      "lr": 0.002671692118211719,
+      "weight_decay": 0.001084794433974784,
+      "dropout": 0.20602220418165074,
+      "label_smoothing": 0.06422628668761599,
+      "mixup_alpha": 0.2475249791812494,
+      "aug_strength": 0.615138543200999,
+      "batch_size": 32,
+      "optimizer": "adamw"
+    },
+    "checkpoint": "results_hpo/mobilenet_hpo_best.pth"
+  },
+  {
+    "model_name": "resnet",
+    "best_val_acc": 0.9910979228486647,
+    "best_params": {
+      "lr": 0.002720875261795391,
+      "weight_decay": 0.001084794433974784,
+      "dropout": 0.23335892483081877,
+      "label_smoothing": 0.05147092957300103,
+      "mixup_alpha": 0.23868349219796245,
+      "aug_strength": 0.4033747225258385,
+      "batch_size": 32,
+      "optimizer": "adamw"
+    },
+    "checkpoint": "results_hpo/resnet_hpo_best.pth"
+  }
+]
