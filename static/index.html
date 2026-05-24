@@ -419,13 +419,6 @@
             <option value="resnet">ResNet-50</option>
           </select>
         </div>
-        <div class="control-group">
-          <label>Grad-CAM</label>
-          <select id="gradcamSelect">
-            <option value="true">Enabled</option>
-            <option value="false">Disabled</option>
-          </select>
-        </div>
         <button class="btn btn-primary" id="predictBtn" onclick="runPredict()" disabled>
           Classify
         </button>
@@ -840,7 +833,7 @@ function showNoBanana(resultsId, message) {
 async function runPredict() {
   if (!currentFile) return;
   const model = document.getElementById('modelSelect').value;
-  const gradcam = document.getElementById('gradcamSelect').value;
+  const gradcam = 'true';
 
   document.getElementById('classifyEmpty').style.display = 'none';
   document.getElementById('classifyResults').style.display = 'none';
