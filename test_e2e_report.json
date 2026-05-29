@@ -1,0 +1,102 @@
+{
+  "api_url": "http://localhost:8000",
+  "frontend_url": "https://ai-matrix-banana-ripeness.vercel.app",
+  "total": 15,
+  "passed": 15,
+  "failed": 0,
+  "warned": 0,
+  "skipped": 0,
+  "duration_s": 54.1,
+  "tests": [
+    {
+      "name": "Health Check \u2014 API online + models loaded",
+      "status": "\u2705 PASS",
+      "detail": "All 4 models loaded. Device=cpu",
+      "duration": 2.0588245391845703
+    },
+    {
+      "name": "Single Prediction \u2014 /predict returns correct structure",
+      "status": "\u2705 PASS",
+      "detail": "class=ripe  conf=0.670  model=mobilenet",
+      "duration": 2.2275538444519043
+    },
+    {
+      "name": "All Models \u2014 each model returns valid response",
+      "status": "\u2705 PASS",
+      "detail": "All passed: ['efficientnet(overripe)', 'efficientnetv2(ripe)', 'mobilenet(overripe)', 'resnet(unripe)']",
+      "duration": 8.794129133224487
+    },
+    {
+      "name": "Grad-CAM \u2014 heatmap returned and valid base64 PNG",
+      "status": "\u2705 PASS",
+      "detail": "Grad-CAM returned 44 KB PNG ((224, 224))",
+      "duration": 2.3015530109405518
+    },
+    {
+      "name": "Banana Detection \u2014 detector finds banana in image",
+      "status": "\u2705 PASS",
+      "detail": "Detected with 98% confidence  bbox=[0, 75, 741, 693]",
+      "duration": 2.2498481273651123
+    },
+    {
+      "name": "No-Banana Rejection \u2014 random image returns error gracefully",
+      "status": "\u2705 PASS",
+      "detail": "Correctly rejected: 'No banana detected \u2014 please point the camera at a banana.'",
+      "duration": 2.1610922813415527
+    },
+    {
+      "name": "Model Comparison \u2014 /compare returns all 4 models",
+      "status": "\u2705 PASS",
+      "detail": "4/4 models returned results",
+      "duration": 3.145735740661621
+    },
+    {
+      "name": "History Logging \u2014 predictions saved to /history",
+      "status": "\u2705 PASS",
+      "detail": "5 records. Latest: overripe (0.483)",
+      "duration": 4.2543251514434814
+    },
+    {
+      "name": "History Clear \u2014 DELETE /history empties log",
+      "status": "\u2705 PASS",
+      "detail": "Deleted 27 records. History now empty.",
+      "duration": 4.087625980377197
+    },
+    {
+      "name": "All Classes \u2014 system can classify all 4 ripeness classes",
+      "status": "\u2705 PASS",
+      "detail": "Predicted classes: ['overripe', 'ripe', 'rotten', 'unripe']",
+      "duration": 8.789623975753784
+    },
+    {
+      "name": "Confidence Scores \u2014 probabilities sum to 1.0",
+      "status": "\u2705 PASS",
+      "detail": "Sum=1.000000  Classes=['overripe', 'ripe', 'rotten', 'unripe']",
+      "duration": 2.2177977561950684
+    },
+    {
+      "name": "Response Time \u2014 prediction under threshold",
+      "status": "\u2705 PASS",
+      "detail": "Avg=2.23s  Max=2.24s  (threshold=10.0s)",
+      "duration": 6.67983603477478
+    },
+    {
+      "name": "Concurrent Requests \u2014 3 simultaneous requests handled",
+      "status": "\u2705 PASS",
+      "detail": "All 3 concurrent requests returned 200",
+      "duration": 2.460195302963257
+    },
+    {
+      "name": "Invalid Input \u2014 non-image file returns error not 500",
+      "status": "\u2705 PASS",
+      "detail": "Returned HTTP 400 (not 500)",
+      "duration": 2.0417988300323486
+    },
+    {
+      "name": "Frontend \u2014 Vercel URL returns 200",
+      "status": "\u2705 PASS",
+      "detail": "Frontend accessible at https://ai-matrix-banana-ripness.vercel.app (app found)",
+      "duration": 0.6262784004211426
+    }
+  ]
+}
